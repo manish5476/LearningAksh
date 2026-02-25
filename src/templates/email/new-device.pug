@@ -1,0 +1,51 @@
+extends layout.pug
+
+block content
+  h2(style="margin-top: 0; color: #333;") New Device Login Detected
+
+  p Hello #{firstName},
+
+  p We detected a new login to your EdTech Platform account from an unrecognized device.
+
+  .info-box(style="background: #fff3cd; border-left-color: #856404;")
+    h4(style="margin-top: 0; color: #856404;") Login Details:
+    p(style="margin: 5px 0;")
+      strong Device: 
+      | #{device}
+    p(style="margin: 5px 0;")
+      strong Browser: 
+      | #{browser}
+    p(style="margin: 5px 0;")
+      strong Operating System: 
+      | #{os}
+    p(style="margin: 5px 0;")
+      strong IP Address: 
+      | #{ip}
+    p(style="margin: 5px 0;")
+      strong Location: 
+      | #{location}
+    p(style="margin: 5px 0;")
+      strong Time: 
+      | #{time}
+
+  if location !== "Unknown"
+    p(style="color: #856404;")
+      strong Was this you?
+  else
+    p(style="color: #856404;")
+      strong If this wasn't you, please secure your account immediately.
+
+  div(style="text-align: center;")
+    a.button(href=securityUrl) Review Account Security
+
+  h3 Recommended Actions:
+  ul(style="padding-left: 20px;")
+    li Change your password immediately
+    li Enable two-factor authentication
+    li Review recent account activity
+    li Check for any unauthorized changes
+
+  p(style="margin-top: 30px;")
+    | If you recognize this activity, no further action is needed.
+    br
+    | If you don't recognize this activity, please contact support immediately.

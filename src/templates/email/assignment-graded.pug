@@ -1,0 +1,34 @@
+extends layout.pug
+
+block content
+  h2(style="margin-top: 0; color: #333;") Assignment Graded: #{assignmentName}
+
+  p Hello #{firstName},
+
+  p Your assignment for 
+    strong #{courseName}
+    |  has been graded!
+
+  .info-box(style="background: #d4edda; border-left-color: #155724;")
+    h3(style="margin-top: 0; color: #155724;") Your Grade:
+    p(style="font-size: 24px; margin: 10px 0; color: #155724;")
+      strong #{grade}% (#{points})
+
+  if feedback
+    .info-box
+      h4(style="margin-top: 0;") Instructor Feedback:
+      p(style="margin: 0; font-style: italic;") "#{feedback}"
+
+  div(style="text-align: center;")
+    a.button(href=viewSubmissionUrl) View Graded Submission
+
+  h3 Next Steps:
+  ul(style="padding-left: 20px;")
+    li Review the feedback carefully
+    li Check if there are resubmission options
+    li Move on to the next assignment
+    li Reach out if you have questions
+
+  p(style="margin-top: 30px;")
+    strong Keep up the good work!<br>
+    The EdTech Team

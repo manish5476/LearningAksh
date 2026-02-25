@@ -1,0 +1,34 @@
+extends layout.pug
+
+block content
+  h2(style="margin-top: 0; color: #333;") Account Deactivation Confirmation
+
+  p Hello #{firstName},
+
+  p We're writing to confirm that your EdTech Platform account has been deactivated as requested.
+
+  .info-box(style="background: #f8d7da; border-left-color: #721c24;")
+    h4(style="margin-top: 0; color: #721c24;") What this means:
+    ul(style="color: #721c24; margin-bottom: 0;")
+      li You cannot log into your account
+      li Your courses and progress are saved
+      li You won't receive any notifications
+      li Your certificates remain valid
+
+  h3 Reactivate Your Account
+  p You can reactivate your account at any time by clicking the button below:
+
+  div(style="text-align: center;")
+    a.button(href=reactivateUrl) Reactivate Account
+
+  .info-box(style="background: #fff3cd; border-left-color: #856404;")
+    p(style="margin: 0; color: #856404;")
+      strong Note: 
+      | This reactivation link will expire in 30 days.
+
+  p If you have any questions or need assistance, please contact our support team.
+
+  p(style="margin-top: 30px;")
+    | We're sorry to see you go and hope to see you back soon!
+    br
+    strong The EdTech Team

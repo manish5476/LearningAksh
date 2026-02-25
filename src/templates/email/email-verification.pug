@@ -1,0 +1,28 @@
+extends layout.pug
+
+block content
+  h2(style="margin-top: 0; color: #333;") Verify Your Email Address
+
+  p Hello #{firstName},
+
+  p Thanks for signing up! Please verify your email address to activate your account and start learning.
+
+  div(style="text-align: center;")
+    a.button(href=verifyUrl) Verify Email Address
+
+  .info-box(style="background: #fff3cd; border-left-color: #856404;")
+    p(style="margin: 0; color: #856404;")
+      strong ⏰ This verification link will expire in #{expiryTime || '24 hours'}.
+
+  p If you didn't create an account, you can safely ignore this email.
+
+  h3 Why verify your email?
+  ul(style="padding-left: 20px;")
+    li Access all course features
+    li Receive important updates
+    li Reset your password if needed
+    li Get course completion certificates
+
+  p(style="margin-top: 30px;")
+    | If the button doesn't work, copy and paste this link into your browser:
+  p(style="word-break: break-all; color: #667eea;") #{verifyUrl}

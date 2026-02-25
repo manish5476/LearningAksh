@@ -1,0 +1,45 @@
+extends layout.pug
+
+block content
+  h2(style="margin-top: 0; color: #333;") Payment Receipt
+
+  p Thank you for your purchase, #{firstName}!
+
+  .info-box
+    h3(style="margin-top: 0; color: #667eea;") Receipt Details:
+    table(style="width: 100%;")
+      tr
+        td Receipt Number:
+        td(style="text-align: right;") #{receiptNumber}
+      tr
+        td Date:
+        td(style="text-align: right;") #{new Date(date).toLocaleDateString()}
+      tr
+        td Payment Method:
+        td(style="text-align: right;") #{paymentMethod || 'Credit Card'}
+
+  h3 Order Summary:
+  table(style="width: 100%; border-collapse: collapse;")
+    thead
+      tr(style="border-bottom: 2px solid #e9ecef;")
+        th(style="text-align: left; padding: 10px 0;") Item
+        th(style="text-align: right; padding: 10px 0;") Amount
+    tbody
+      each item in items || []
+        tr
+          td(style="padding: 10px 0;") #{item.name}
+          td(style="text-align: right; padding: 10px 0;") $#{item.price}
+      tr(style="border-top: 2px solid #e9ecef;")
+        td(style="padding: 10px 0; font-weight: bold;") Total
+        td(style="text-align: right; padding: 10px 0; font-weight: bold;") $#{total}
+
+  if billingAddress
+    .info-box
+      h4(style="margin-top: 0;") Billing Address:
+      p(style="margin: 0;")
+        | #{billingAddress.street}<br>
+        | #{billingAddress.city}, #{billingAddress.state} #{billingAddress.zipCode}<br>
+        | #{billingAddress.country}
+
+  p(style="margin-top: 30px;")
+    | This receipt will also be available in your account dashboard.

@@ -1,0 +1,42 @@
+extends layout.pug
+
+block content
+  h2(style="margin-top: 0; color: #333;") Enrollment Confirmed!
+
+  p Thank you for enrolling in 
+    strong #{courseName}
+    | ! You now have full access to all course materials.
+
+  .info-box
+    h3(style="margin-top: 0; color: #667eea;") Course Overview:
+    ul(style="padding-left: 20px; margin-bottom: 0;")
+      li Video lessons with expert instructors
+      li Practice exercises and quizzes
+      li Downloadable resources
+      li Community discussions
+      li Certificate upon completion
+
+  if amount
+    .info-box(style="background: #d4edda; border-left-color: #155724;")
+      p(style="margin: 0; color: #155724;")
+        strong 💰 Payment Details:
+        br
+        | Amount: $#{amount}
+        if transactionId
+          br
+          | Transaction ID: #{transactionId}
+
+  div(style="text-align: center;")
+    a.button(href=startLearningUrl) Start Learning Now
+
+  h3 Your Learning Path:
+  ol(style="padding-left: 20px;")
+    li Watch the introductory videos
+    li Complete section-by-section
+    li Take quizzes to test your knowledge
+    li Submit assignments for feedback
+    li Earn your certificate
+
+  p(style="margin-top: 30px;")
+    strong Ready to begin your learning journey?<br>
+    The EdTech Team

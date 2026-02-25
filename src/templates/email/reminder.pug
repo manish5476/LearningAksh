@@ -1,0 +1,25 @@
+extends layout.pug
+
+block content
+  h2(style="margin-top: 0; color: #333;") #{reminderTitle}
+
+  p Hello #{firstName},
+
+  .info-box(style="background: #cce5ff; border-left-color: #004085;")
+    p(style="margin: 0; color: #004085;") #{reminderMessage}
+
+  if actionUrl
+    div(style="text-align: center;")
+      a.button(href=actionUrl) #{actionText || 'Take Action'}
+
+  h3 Quick Tips:
+  ul(style="padding-left: 20px;")
+    li Set aside dedicated learning time
+    li Break larger tasks into smaller chunks
+    li Join study groups for motivation
+    li Track your progress daily
+
+  p(style="margin-top: 30px;")
+    | You're doing great! Keep pushing forward.
+    br
+    strong The EdTech Team

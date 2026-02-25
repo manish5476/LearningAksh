@@ -1,0 +1,29 @@
+extends layout.pug
+
+block content
+  h2(style="margin-top: 0; color: #333;") Welcome to EdTech Platform, #{firstName}! 🎓
+  
+  p We're thrilled to have you on board! You've just taken the first step towards expanding your knowledge and skills.
+
+  .info-box
+    h3(style="margin-top: 0; color: #667eea;") Here's what you can do next:
+    ul(style="padding-left: 20px;")
+      li Explore our extensive course catalog
+      li Start learning with free preview lessons
+      li Track your progress with detailed analytics
+      li Earn certificates upon course completion
+      li Connect with instructors and peers
+
+  div(style="text-align: center;")
+    a.button(href=loginUrl) Start Learning Now
+
+  h3 Getting Started Tips:
+  ul(style="padding-left: 20px;")
+    li Complete your profile to get personalized recommendations
+    li Browse courses by category or skill level
+    li Save courses to your wishlist for later
+    li Join discussions and ask questions
+
+  p(style="margin-top: 30px;")
+    strong Happy Learning!<br>
+    The EdTech Team

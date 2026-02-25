@@ -1,0 +1,25 @@
+extends layout.pug
+
+block content
+  h2(style="margin-top: 0; color: #333;") #{subject}
+
+  p Hello #{firstName},
+
+  .content-body
+    | !{content}
+
+  h3 Featured This Week:
+  ul(style="padding-left: 20px;")
+    li New courses added
+    li Upcoming live sessions
+    li Success stories from students
+    li Tips and tricks for better learning
+
+  div(style="text-align: center;")
+    a.button(href="https://edtech.com/explore") Explore New Content
+
+  p(style="margin-top: 30px; font-size: 12px; color: #999;")
+    | You're receiving this because you subscribed to our newsletter.
+    br
+    a(href=unsubscribeUrl, style="color: #667eea;") Unsubscribe
+    |  if you don't want to receive these emails.

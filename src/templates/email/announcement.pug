@@ -1,0 +1,22 @@
+extends layout.pug
+
+block content
+  h2(style="margin-top: 0; color: #333;") #{title}
+
+  if instructorName
+    p(style="color: #666;") From: #{instructorName}
+
+  .info-box
+    p(style="margin: 0;") #{message}
+
+  if courseName
+    p This announcement is for the course: 
+      strong #{courseName}
+
+  if courseUrl
+    div(style="text-align: center;")
+      a.button(href=courseUrl) View Course
+
+  p(style="margin-top: 30px; font-style: italic;")
+    | You're receiving this because you're enrolled in this course. 
+    | You can manage your notification preferences in your account settings.

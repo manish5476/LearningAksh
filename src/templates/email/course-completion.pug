@@ -1,0 +1,35 @@
+extends layout.pug
+
+block content
+  h2(style="margin-top: 0; color: #333;") Congratulations, #{firstName}! 🎉
+
+  div(style="text-align: center; margin: 30px 0;")
+    div(style="font-size: 60px;") 🏆
+
+  p You've successfully completed 
+    strong #{courseName}
+    | ! Your dedication and hard work have paid off.
+
+  .info-box
+    h3(style="margin-top: 0; color: #667eea;") Your Achievement:
+    ul(style="padding-left: 20px; margin-bottom: 0;")
+      li Certificate of Completion attached
+      li New skills added to your profile
+      li Badge earned for your accomplishment
+      li Course added to your portfolio
+
+  p Your certificate is attached to this email. You can also view and download it anytime from your profile.
+
+  div(style="text-align: center;")
+    a.button(href=viewCertificateUrl) View Your Certificate
+
+  h3 What's Next?
+  ul(style="padding-left: 20px;")
+    li Explore advanced courses in this topic
+    li Share your achievement on social media
+    li Write a review to help other learners
+    li Join our alumni community
+
+  p(style="margin-top: 30px;")
+    strong Keep up the great work!<br>
+    The EdTech Team

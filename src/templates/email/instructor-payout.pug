@@ -1,0 +1,42 @@
+extends layout.pug
+
+block content
+  h2(style="margin-top: 0; color: #333;") Payout Processed
+
+  p Hello #{firstName},
+
+  p We're pleased to inform you that your payout has been processed successfully!
+
+  .info-box(style="background: #d4edda; border-left-color: #155724;")
+    h3(style="margin-top: 0; color: #155724;") Payout Details:
+    table(style="width: 100%;")
+      tr
+        td Amount:
+        td(style="text-align: right; font-size: 20px; color: #155724;") 
+          strong $#{amount}
+      tr
+        td Period:
+        td(style="text-align: right;") #{period}
+      tr
+        td Date:
+        td(style="text-align: right;") #{new Date(payoutDate).toLocaleDateString()}
+      tr
+        td Transaction ID:
+        td(style="text-align: right;") #{transactionId}
+
+  h3 Earnings Summary for This Period:
+  ul(style="padding-left: 20px;")
+    li Total course sales
+    li Minus platform fees
+    li Your earnings after fees
+
+  p The funds should appear in your account within 3-5 business days, depending on your bank.
+
+  .info-box
+    p(style="margin: 0;")
+      strong Note: 
+      | If you don't see the funds within 5 business days, please contact your bank first, then our support team.
+
+  p(style="margin-top: 30px;")
+    strong Thank you for being an amazing instructor!<br>
+    The EdTech Team
