@@ -1,20 +1,33 @@
 'use strict';
 
-const AppError = require("./appError");
-const ApiFeatures = require("./ApiFeatures");
-const catchAsync = require("./catchAsync");
+const AppError = require("../utils/appError");
+const ApiFeatures = require("../utils/apiFeatures");
+const catchAsync = require("../utils/catchAsync");
 
 /**
- * CRUD HANDLER FACTORY
- * Enforces strict multi-tenant isolation across all system models.
+ * Helper to determine ownership scope based on Ed-Tech Schemas.
+ * Prevents students from updating other students' data, or instructors modifying other courses.
  */
+const getOwnershipFilter = (Model, req) => {
+  const filter = {};
+  
+  // If no user exists on request, or user is an Admin, skip ownership locks
+  if (!req.user || req.user.role === 'admin') return filter;
+
+  // Dynamically lock queries to the current user's ID based on the Schema structure
+  if (Model.schema.path("instructor")) filter.instructor = req.user.id;
+  else if (Model.schema.path("student")) filter.student = req.user.id;
+  else if (Model.schema.path("user")) filter.user = req.user.id;
+  
+  return filter;
+};
 
 exports.getAll = (Model, options = {}) =>
   catchAsync(async (req, res, next) => {
-    // 1. Mandatory Organization Filter
-    const filter = { organizationId: req.user.organizationId };
+    // 1. Base Filter (Allows nested routes like GET /courses/:courseId/reviews)
+    let filter = { ...req.filter }; 
 
-    // 2. Automated status management
+    // 2. Automated status & soft-delete management
     if (Model.schema.path("isDeleted")) filter.isDeleted = { $ne: true };
     if (Model.schema.path("isActive") && !options.includeInactive) {
       filter.isActive = { $ne: false };
@@ -44,27 +57,26 @@ exports.getAll = (Model, options = {}) =>
 
 exports.getOne = (Model, options = {}) =>
   catchAsync(async (req, res, next) => {
-    let query = Model.findOne({
-      _id: req.params.id,
-      organizationId: req.user.organizationId,
-    });
+    let query = Model.findOne({ _id: req.params.id });
+
+    // Ensure soft-deleted items aren't fetched by ID
+    if (Model.schema.path("isDeleted")) query = query.where({ isDeleted: { $ne: true } });
 
     if (options.populate) query = query.populate(options.populate);
     const doc = await query.lean();
 
-    if (!doc) return next(new AppError("Document not found or unauthorized", 404));
+    if (!doc) return next(new AppError("Document not found", 404));
 
     res.status(200).json({ status: "success", data: { data: doc } });
   });
 
 exports.createOne = (Model) =>
   catchAsync(async (req, res, next) => {
-    // Zero-Trust: Force organization and creator IDs
-    req.body.organizationId = req.user.organizationId;
-    req.body.createdBy = req.user._id || req.user.id;
-
-    if (Model.schema.path("isActive") && req.body.isActive === undefined) {
-      req.body.isActive = true;
+    // Zero-Trust: Auto-assign ownership based on the currently logged-in user
+    if (req.user) {
+      if (Model.schema.path("instructor") && !req.body.instructor) req.body.instructor = req.user.id;
+      if (Model.schema.path("student") && !req.body.student) req.body.student = req.user.id;
+      if (Model.schema.path("user") && !req.body.user) req.body.user = req.user.id;
     }
 
     const doc = await Model.create(req.body);
@@ -73,26 +85,23 @@ exports.createOne = (Model) =>
 
 exports.updateOne = (Model) =>
   catchAsync(async (req, res, next) => {
-    // Audit Info
-    req.body.updatedBy = req.user._id || req.user.id;
-    req.body.updatedAt = Date.now();
-
-    // 🟢 SECURITY: Remove organizationId from body to prevent tenant-hopping
-    delete req.body.organizationId;
+    // Determine if the user is authorized to update this specific document
+    const filter = { _id: req.params.id, ...getOwnershipFilter(Model, req) };
 
     const doc = await Model.findOneAndUpdate(
-      { _id: req.params.id, organizationId: req.user.organizationId },
+      filter,
       req.body,
       { new: true, runValidators: true }
     );
 
-    if (!doc) return next(new AppError("Document not found or unauthorized", 404));
+    if (!doc) return next(new AppError("Document not found or you are not authorized to update it", 404));
     res.status(200).json({ status: "success", data: { data: doc } });
   });
 
 exports.deleteOne = (Model) =>
   catchAsync(async (req, res, next) => {
-    const filter = { _id: req.params.id, organizationId: req.user.organizationId };
+    // Only the owner or an admin can delete
+    const filter = { _id: req.params.id, ...getOwnershipFilter(Model, req) };
     const hasSoftDelete = !!Model.schema.path("isDeleted");
     let doc;
 
@@ -100,14 +109,13 @@ exports.deleteOne = (Model) =>
       doc = await Model.findOneAndUpdate(filter, {
         isDeleted: true,
         isActive: false,
-        deletedBy: req.user._id || req.user.id,
         deletedAt: Date.now(),
       }, { new: true });
     } else {
       doc = await Model.findOneAndDelete(filter);
     }
 
-    if (!doc) return next(new AppError("Document not found", 404));
+    if (!doc) return next(new AppError("Document not found or you are not authorized", 404));
     res.status(204).json({ status: "success", data: null });
   });
 
@@ -115,12 +123,16 @@ exports.bulkCreate = (Model) =>
   catchAsync(async (req, res, next) => {
     if (!Array.isArray(req.body)) return next(new AppError("Request body must be an array", 400));
 
-    const docs = req.body.map((item) => ({
-      ...item,
-      organizationId: req.user.organizationId,
-      createdBy: req.user._id || req.user.id,
-      isActive: item.isActive !== undefined ? item.isActive : true,
-    }));
+    const docs = req.body.map((item) => {
+      const newItem = { ...item };
+      // Auto-assign ownership if applicable
+      if (req.user) {
+        if (Model.schema.path("instructor") && !newItem.instructor) newItem.instructor = req.user.id;
+        if (Model.schema.path("student") && !newItem.student) newItem.student = req.user.id;
+        if (Model.schema.path("user") && !newItem.user) newItem.user = req.user.id;
+      }
+      return newItem;
+    });
 
     const result = await Model.insertMany(docs);
     res.status(201).json({ status: "success", results: result.length, data: { data: result } });
@@ -131,12 +143,11 @@ exports.bulkUpdate = (Model) =>
     const { ids, updates } = req.body;
     if (!Array.isArray(ids) || !updates) return next(new AppError("IDs and Updates required", 400));
 
-    delete updates.organizationId;
-    updates.updatedBy = req.user._id || req.user.id;
-    updates.updatedAt = Date.now();
+    // Lock bulk updates to user's own documents unless Admin
+    const filter = { _id: { $in: ids }, ...getOwnershipFilter(Model, req) };
 
     const result = await Model.updateMany(
-      { _id: { $in: ids }, organizationId: req.user.organizationId },
+      filter,
       updates,
       { runValidators: true }
     );
@@ -149,7 +160,8 @@ exports.bulkDelete = (Model) =>
     const { ids, hardDelete = false } = req.body;
     if (!Array.isArray(ids)) return next(new AppError("IDs array required", 400));
 
-    const filter = { _id: { $in: ids }, organizationId: req.user.organizationId };
+    // Lock bulk deletes to user's own documents unless Admin
+    const filter = { _id: { $in: ids }, ...getOwnershipFilter(Model, req) };
     const hasSoftDelete = !!Model.schema.path("isDeleted");
     let result;
 
@@ -157,7 +169,6 @@ exports.bulkDelete = (Model) =>
       result = await Model.updateMany(filter, {
         isDeleted: true,
         isActive: false,
-        deletedBy: req.user._id || req.user.id,
         deletedAt: Date.now()
       });
     } else {
@@ -171,65 +182,25 @@ exports.restoreOne = (Model) =>
   catchAsync(async (req, res, next) => {
     if (!Model.schema.path("isDeleted")) return next(new AppError("Model does not support restoration", 400));
 
+    const filter = { _id: req.params.id, isDeleted: true, ...getOwnershipFilter(Model, req) };
+
     const doc = await Model.findOneAndUpdate(
-      { _id: req.params.id, organizationId: req.user.organizationId, isDeleted: true },
-      { isDeleted: false, isActive: true, restoredBy: req.user._id || req.user.id, restoredAt: Date.now() },
+      filter,
+      { isDeleted: false, isActive: true, deletedAt: null },
       { new: true }
     );
 
-    if (!doc) return next(new AppError("No deleted document found", 404));
+    if (!doc) return next(new AppError("No deleted document found or unauthorized", 404));
     res.status(200).json({ status: "success", data: { data: doc } });
   });
 
 exports.count = (Model) =>
   catchAsync(async (req, res, next) => {
-    const filter = { organizationId: req.user.organizationId };
+    let filter = { ...req.filter };
     if (Model.schema.path("isDeleted")) filter.isDeleted = { $ne: true };
 
     const features = new ApiFeatures(Model.find(filter), req.query).filter();
     const count = await Model.countDocuments(features.query.getFilter());
 
     res.status(200).json({ status: "success", data: { count } });
-  });
-
-exports.exportData = (Model, options = {}) =>
-  catchAsync(async (req, res, next) => {
-    const filter = { organizationId: req.user.organizationId };
-    if (Model.schema.path("isDeleted")) filter.isDeleted = { $ne: true };
-
-    const features = new ApiFeatures(Model.find(filter), req.query)
-      .filter()
-      .search(options.searchFields || ["name", "title"])
-      .sort()
-      .limitFields();
-
-    const data = await features.query.lean();
-    res.status(200).json({ status: "success", results: data.length, data: { data } });
-  });
-
-exports.getStats = (Model) =>
-  catchAsync(async (req, res, next) => {
-    const features = new ApiFeatures(Model.find(), req.query).filter();
-    const filter = features.query.getFilter();
-    
-    // Enforce isolation
-    filter.organizationId = req.user.organizationId;
-    if (Model.schema.path("isDeleted")) filter.isDeleted = { $ne: true };
-
-    const stats = await Model.aggregate([
-      { $match: filter },
-      {
-        $group: {
-          _id: null,
-          total: { $sum: 1 },
-          active: { $sum: { $cond: [{ $eq: ["$isActive", true] }, 1, 0] } },
-          inactive: { $sum: { $cond: [{ $eq: ["$isActive", false] }, 1, 0] } }
-        }
-      }
-    ]);
-
-    res.status(200).json({
-      status: "success",
-      data: { stats: stats[0] || { total: 0, active: 0, inactive: 0 } }
-    });
   });
