@@ -1,0 +1,45 @@
+# src/docs/swagger.yaml
+openapi: 3.0.0
+info:
+  title: EdTech Platform API
+  version: 1.0.0
+  description: Comprehensive EdTech Platform API
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Development server
+paths:
+  /auth/signup:
+    post:
+      summary: Register a new user
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - firstName
+                - lastName
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 6
+                firstName:
+                  type: string
+                lastName:
+                  type: string
+                role:
+                  type: string
+                  enum: [student, instructor]
+      responses:
+        201:
+          description: User created successfully
+        400:
+          description: Invalid input

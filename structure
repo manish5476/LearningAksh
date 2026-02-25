@@ -1,0 +1,84 @@
+edtech-platform/
+├── src/
+│   ├── config/
+│   │   └── db.js
+│   ├── controllers/
+│   │   ├── authController.js
+│   │   ├── userController.js
+│   │   ├── courseController.js
+│   │   ├── sectionController.js
+│   │   ├── lessonController.js
+│   │   ├── categoryController.js
+│   │   ├── enrollmentController.js
+│   │   ├── reviewController.js
+│   │   ├── quizController.js
+│   │   ├── assignmentController.js
+│   │   ├── codingExerciseController.js
+│   │   ├── mockTestController.js
+│   │   ├── progressController.js
+│   │   ├── certificateController.js
+│   │   ├── notificationController.js
+│   │   ├── paymentController.js
+│   │   ├── discussionController.js
+│   │   └── errorController.js
+│   ├── middlewares/
+│   │   ├── validationMiddleware.js
+│   │   ├── uploadMiddleware.js
+│   │   └── rateLimiterMiddleware.js
+│   ├── models/
+│   │   ├── index.js
+│   │   ├── User.js
+│   │   ├── Course.js
+│   │   └── ... (all your model files)
+│   ├── routes/
+│   │   ├── index.js
+│   │   ├── authRoutes.js
+│   │   ├── userRoutes.js
+│   │   ├── courseRoutes.js
+│   │   ├── sectionRoutes.js
+│   │   ├── lessonRoutes.js
+│   │   ├── categoryRoutes.js
+│   │   ├── enrollmentRoutes.js
+│   │   ├── reviewRoutes.js
+│   │   ├── quizRoutes.js
+│   │   ├── assignmentRoutes.js
+│   │   ├── codingExerciseRoutes.js
+│   │   ├── mockTestRoutes.js
+│   │   ├── progressRoutes.js
+│   │   ├── certificateRoutes.js
+│   │   ├── notificationRoutes.js
+│   │   ├── paymentRoutes.js
+│   │   └── discussionRoutes.js
+│   ├── services/
+│   │   ├── emailService.js
+│   │   └── paymentService.js
+│   ├── utils/
+│   │   ├── appError.js
+│   │   ├── catchAsync.js
+│   │   ├── apiFeatures.js
+│   │   ├── email.js
+│   │   ├── logger.js
+│   │   └── security.js
+│   ├── validations/
+│   │   ├── authValidation.js
+│   │   ├── courseValidation.js
+│   │   └── userValidation.js
+│   ├── jobs/
+│   │   └── emailQueue.js
+│   ├── docs/
+│   │   └── swagger.yaml
+│   ├── app.js
+│   └── server.js
+├── tests/
+│   ├── unit/
+│   ├── integration/
+│   └── e2e/
+├── public/
+│   └── img/
+├── logs/
+├── .env
+├── .gitignore
+├── Dockerfile
+├── docker-compose.yml
+├── package.json
+└── README.md
