@@ -1,7 +1,7 @@
 const { Announcement, Course, Enrollment, User } = require('../models');
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
-const factory = require('./handlerFactory');
+const factory = require('../utils/handlerFactory');
 const emailQueue = require('../jobs/emailQueue');
 const notificationQueue = require('../jobs/notificationQueue');
 

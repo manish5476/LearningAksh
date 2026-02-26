@@ -1,7 +1,7 @@
 const { Certificate, Course, User } = require('../models');
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
-const factory = require('./handlerFactory');
+const factory = require('../utils/handlerFactory');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');

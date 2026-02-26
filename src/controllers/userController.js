@@ -1,7 +1,7 @@
 const { User, InstructorProfile, StudentProfile } = require('../models');
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
-const factory = require('./handlerFactory');
+const factory = require('../utils/handlerFactory');
 
 // Filter allowed fields for update
 const filterObj = (obj, ...allowedFields) => {

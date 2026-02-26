@@ -1,7 +1,7 @@
 const { Coupon, Course } = require('../models');
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
-const factory = require('./handlerFactory');
+const factory = require('../utils/handlerFactory');
 
 exports.createCoupon = catchAsync(async (req, res, next) => {
   // Auto-generate code if not provided

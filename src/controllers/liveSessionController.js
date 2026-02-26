@@ -1,7 +1,7 @@
 const { LiveSession, Course, User, Enrollment } = require('../models');
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
-const factory = require('./handlerFactory');
+const factory = require('../utils/handlerFactory');
 const { v4: uuidv4 } = require('uuid');
 
 // For video conferencing integration (Zoom, Google Meet, etc.)

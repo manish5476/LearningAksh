@@ -1,7 +1,7 @@
 const { Enrollment, Course, User, Payment } = require('../models');
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
-const factory = require('./handlerFactory');
+const factory = require('../utils/handlerFactory');
 
 exports.enrollStudent = catchAsync(async (req, res, next) => {
   const { courseId, paymentId } = req.body;

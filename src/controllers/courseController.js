@@ -1,7 +1,7 @@
 const { Course, Category, Section, Lesson, Enrollment } = require('../models');
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
-const factory = require('./handlerFactory');
+const factory = require('../utils/handlerFactory');
 
 exports.createCourse = catchAsync(async (req, res, next) => {
   // Add instructor from logged in user

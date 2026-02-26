@@ -1,7 +1,7 @@
 const { Payment, User, Course, MockTest } = require('../models');
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
-const factory = require('./handlerFactory');
+const factory = require('../utils/handlerFactory');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const Razorpay = require('razorpay');
 

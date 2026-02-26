@@ -8,10 +8,12 @@ const router = express.Router();
 router.use(authController.protect);
 
 // Instructor routes
-router.get('/instructor/:instructorId?', analyticsController.getInstructorAnalytics);
+router.get('/instructor', analyticsController.getInstructorAnalytics);
+router.get('/instructor/:instructorId', analyticsController.getInstructorAnalytics);
 
 // Student routes
-router.get('/student/:studentId?', analyticsController.getStudentAnalytics);
+router.get('/student', analyticsController.getStudentAnalytics);
+router.get('/student/:studentId', analyticsController.getStudentAnalytics);
 
 // Admin only routes
 router.use(authController.restrictTo('admin'));

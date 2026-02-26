@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const { AuditLog } = require('../models');
 
 exports.auditLog = (action) => {
@@ -73,22 +74,3 @@ const sanitizeData = (data) => {
   sanitize(sanitized);
   return sanitized;
 };
-
-// Model for audit logs
-const auditLogSchema = new mongoose.Schema({
-  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  action: String,
-  resource: String,
-  method: String,
-  statusCode: Number,
-  ip: String,
-  userAgent: String,
-  timestamp: Date,
-  requestBody: mongoose.Schema.Types.Mixed,
-  requestParams: mongoose.Schema.Types.Mixed,
-  requestQuery: mongoose.Schema.Types.Mixed,
-  responseBody: mongoose.Schema.Types.Mixed
-}, { timestamps: true });
-
-const AuditLog = mongoose.model('AuditLog', auditLogSchema);
-module.exports.AuditLog = AuditLog;

@@ -1,7 +1,7 @@
 const { Badge, UserBadge, User } = require('../models');
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
-const factory = require('./handlerFactory');
+const factory = require('../utils/handlerFactory');
 
 exports.createBadge = catchAsync(async (req, res, next) => {
   // Check if badge with same name exists

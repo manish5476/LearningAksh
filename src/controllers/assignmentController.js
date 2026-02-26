@@ -1,7 +1,7 @@
 const { Assignment, AssignmentSubmission, Course, Lesson, ProgressTracking } = require('../models');
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
-const factory = require('./handlerFactory');
+const factory = require('../utils/handlerFactory');
 
 exports.createAssignment = catchAsync(async (req, res, next) => {
   const { course, lesson } = req.body;

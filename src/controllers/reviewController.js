@@ -1,7 +1,7 @@
 const { Review, Course } = require('../models');
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
-const factory = require('./handlerFactory');
+const factory = require('../utils/handlerFactory');
 
 exports.setCourseUserIds = (req, res, next) => {
   if (!req.body.course) req.body.course = req.params.courseId;

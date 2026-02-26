@@ -1,7 +1,7 @@
 const { StudentNote, Course, Lesson } = require('../models');
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
-const factory = require('./handlerFactory');
+const factory = require('../utils/handlerFactory');
 
 exports.createNote = catchAsync(async (req, res, next) => {
   const { courseId, lessonId } = req.params;

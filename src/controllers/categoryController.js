@@ -1,7 +1,7 @@
 const { Category } = require('../models');
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
-const factory = require('./handlerFactory');
+const factory = require('../utils/handlerFactory');
 const slugify = require('slugify');
 
 exports.createCategory = catchAsync(async (req, res, next) => {

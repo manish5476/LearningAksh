@@ -1,7 +1,7 @@
 const { CodingExercise, CodingSubmission, Course, Lesson, ProgressTracking } = require('../models');
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
-const factory = require('./handlerFactory');
+const factory = require('../utils/handlerFactory');
 const { exec } = require('child_process');
 const util = require('util');
 const fs = require('fs').promises;

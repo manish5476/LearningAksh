@@ -1,7 +1,7 @@
 'use strict';
 
 const AppError = require("../utils/appError");
-const ApiFeatures = require("../utils/apiFeatures");
+const ApiFeatures = require("./ApiFeatures");
 const catchAsync = require("../utils/catchAsync");
 
 /**

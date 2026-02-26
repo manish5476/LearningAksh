@@ -1,5 +1,5 @@
 const nodemailer = require("nodemailer");
-const AppError = require("../appError");
+const AppError = require("./appError");
 
 // 1. Debug: Check if Env Vars are loaded
 if (!process.env.EMAIL_HOST || !process.env.EMAIL_USERNAME) {

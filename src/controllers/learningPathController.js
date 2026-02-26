@@ -1,7 +1,7 @@
 const { LearningPath, Course, Category, User } = require('../models');
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
-const factory = require('./handlerFactory');
+const factory = require('../utils/handlerFactory');
 
 exports.createLearningPath = catchAsync(async (req, res, next) => {
   // Validate courses exist

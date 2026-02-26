@@ -1,7 +1,7 @@
 const { Section, Lesson, Course } = require('../models');
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
-const factory = require('./handlerFactory');
+const factory = require('../utils/handlerFactory');
 
 exports.setCourseId = (req, res, next) => {
   if (!req.body.course) req.body.course = req.params.courseId;
