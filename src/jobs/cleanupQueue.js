@@ -1,21 +1,32 @@
 const Queue = require('bull');
 const { User, Session, Notification, AuditLog } = require('../models');
-const fs = require('fs').promises;
-const path = require('path');
-const storageService = require('../services/storageService');
 
-const cleanupQueue = new Queue('cleanup', {
-  redis: {
-    host: process.env.REDIS_HOST || 'localhost',
-    port: process.env.REDIS_PORT || 6379,
-    password: process.env.REDIS_PASSWORD
-  },
-  defaultJobOptions: {
-    attempts: 1,
-    removeOnComplete: true,
-    removeOnFail: false
-  }
-});
+let cleanupQueue;
+
+if (process.env.REDIS_ENABLED === 'false') {
+    console.log("🟡 Bull Queue: Redis is disabled. Mocking cleanupQueue.");
+    
+    // Correct the variable name to cleanupQueue
+    cleanupQueue = {
+        add: () => Promise.resolve({ id: 'mock-id' }),
+        process: (fn) => console.log("🟡 Cleanup Queue: Mock processor registered"),
+        on: (event, callback) => {},
+        clean: () => Promise.resolve(),
+    };
+} else {
+    cleanupQueue = new Queue('cleanup', {
+        redis: {
+            host: process.env.REDIS_HOST || 'localhost',
+            port: process.env.REDIS_PORT || 6379,
+            password: process.env.REDIS_PASSWORD
+        },
+        defaultJobOptions: {
+            attempts: 1,
+            removeOnComplete: true,
+            removeOnFail: false
+        }
+    });
+}
 
 // Process cleanup jobs
 cleanupQueue.process(async (job) => {

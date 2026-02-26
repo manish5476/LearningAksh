@@ -1,22 +1,40 @@
 const Queue = require('bull');
 const emailService = require('../services/emailService');
 
-const emailQueue = new Queue('email', {
-  redis: {
-    host: process.env.REDIS_HOST || 'localhost',
-    port: process.env.REDIS_PORT || 6379,
-    password: process.env.REDIS_PASSWORD
-  },
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: {
-      type: 'exponential',
-      delay: 5000
-    },
-    removeOnComplete: true,
-    removeOnFail: false
-  }
-});
+let emailQueue;
+
+if (process.env.REDIS_ENABLED === 'false') {
+    console.log("🟡 Bull Queue: Redis is disabled. Mocking emailQueue.");
+    
+    // Create a robust mock object
+    emailQueue = {
+        add: () => Promise.resolve({ id: 'mock-id' }),
+        process: (fn) => { 
+            console.log("🟡 Email Queue: Mock processor registered (No-op)");
+            // In dev, you could even execute the function immediately if you wanted to test logic
+        },
+        on: (event, callback) => {
+            // Silence the event listeners
+        },
+        clean: () => Promise.resolve(),
+        // Add a dummy status for health checks
+        status: 'mocked' 
+    };
+} else {
+    emailQueue = new Queue('email', {
+        redis: {
+            host: process.env.REDIS_HOST || 'localhost',
+            port: process.env.REDIS_PORT || 6379,
+            password: process.env.REDIS_PASSWORD
+        },
+        defaultJobOptions: {
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 5000 },
+            removeOnComplete: true,
+            removeOnFail: false
+        }
+    });
+}
 
 // Process email jobs
 emailQueue.process(async (job) => {

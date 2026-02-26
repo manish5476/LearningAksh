@@ -12,9 +12,9 @@ let isEnabled = process.env.REDIS_ENABLED !== "false";
  */
 const initializeRedis = async () => {
     if (isInitialized) return redisInstance;
-    
+
     isInitialized = true;
-    
+
     if (!isEnabled) {
         console.log("🟡 Redis cache disabled via environment variable");
         return null;
@@ -33,7 +33,7 @@ const initializeRedis = async () => {
             const host = process.env.REDIS_HOST || "localhost";
             const port = parseInt(process.env.REDIS_PORT) || 6379;
             console.log(`🟡 Connecting to Redis at ${host}:${port}`);
-            
+
             config.host = host;
             config.port = port;
             config.lazyConnect = true;
@@ -41,13 +41,23 @@ const initializeRedis = async () => {
 
         // Common configuration
         Object.assign(config, {
+            // Locate the retryStrategy in your file and change it to this:
             retryStrategy: (times) => {
-                if (times > 3) {
-                    console.log("🟡 Redis connection failed after 3 attempts, disabling cache");
-                    return null;
+                // If we're in development and it fails once, stop immediately
+                if (process.env.NODE_ENV === "development" || times > 1) {
+                    console.log("🟡 Redis: Skipping connection in development.");
+                    return null; // This stops further retry attempts
                 }
                 return Math.min(times * 100, 3000);
             },
+            // retryStrategy: (times) => {
+
+            //     if (times > 3) {
+            //         console.log("🟡 Redis connection failed after 3 attempts, disabling cache");
+            //         return null;
+            //     }
+            //     return Math.min(times * 100, 3000);
+            // },
             maxRetriesPerRequest: 1,
             enableOfflineQueue: false,
             showFriendlyErrorStack: process.env.NODE_ENV === "development",
@@ -75,7 +85,7 @@ const initializeRedis = async () => {
         // Attempt to connect
         await redisInstance.connect();
         await redisInstance.ping();
-        
+
         console.log("✅ Redis ping successful");
         return redisInstance;
 
@@ -94,7 +104,7 @@ const initializeRedis = async () => {
 const getRedis = async () => {
     if (!isEnabled) return null;
     if (redisInstance && redisInstance.status === "ready") return redisInstance;
-    
+
     return await initializeRedis();
 };
 
@@ -166,7 +176,7 @@ const safeCache = {
             return 0;
         }
     },
-    
+
     // Additional utility methods
     delete: async (key) => {
         try {
@@ -179,7 +189,7 @@ const safeCache = {
             return false;
         }
     },
-    
+
     exists: async (key) => {
         try {
             const redis = await getRedis();
@@ -190,7 +200,7 @@ const safeCache = {
             return false;
         }
     },
-    
+
     ttl: async (key) => {
         try {
             const redis = await getRedis();
@@ -215,7 +225,7 @@ const cacheMiddleware = (duration = 300) => {
 
         try {
             const cachedResponse = await safeCache.get(key);
-            
+
             if (cachedResponse) {
                 console.log(`✅ Cache hit: ${key}`);
                 return res.status(200).json({
@@ -236,7 +246,7 @@ const cacheMiddleware = (duration = 300) => {
                         if (success) console.log(`✅ Cached: ${key} for ${duration}s`);
                     })
                     .catch(err => console.error('Cache Error:', err.message));
-                
+
                 return originalJson.call(res, body);
             };
 
@@ -264,26 +274,26 @@ module.exports = {
     getRedis,
     isRedisAvailable,
     initializeRedis: initRedisOnStartup,
-    
+
     // Cache operations
     safeCache,
-    
+
     // Middleware
     cacheMiddleware,
-    
+
     // Configuration
     REDIS_ENABLED: isEnabled,
-    
+
     // Utility functions
     clearAllAnalyticsCache: async () => {
         return await safeCache.clear('analytics:*');
     },
-    
+
     clearDashboardCache: async (orgId, branchId) => {
         const pattern = `analytics:dashboard:${orgId}:${branchId || '*'}:*`;
         return await safeCache.clear(pattern);
     },
-    
+
     // Health check
     healthCheck: async () => {
         try {
@@ -294,11 +304,11 @@ module.exports = {
                     message: 'Redis is disabled or not available'
                 };
             }
-            
+
             const ping = await redis.ping();
             const info = await redis.info();
             const keys = await redis.dbsize();
-            
+
             return {
                 status: 'healthy',
                 ping: ping === 'PONG',

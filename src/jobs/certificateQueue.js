@@ -1,8 +1,18 @@
 const Queue = require('bull');
 const certificateService = require('../services/certificateService');
 const emailQueue = require('./emailQueue');
+let certificateQueue;
 
-const certificateQueue = new Queue('certificate', {
+if (process.env.REDIS_ENABLED === 'false') {
+    console.log("🟡 Bull Queue: Redis is disabled. Mocking certificateQueue.");
+    // Create a mock object so your code doesn't crash when calling .add()
+    certificateQueue = {
+        add: () => Promise.resolve({ id: 'mock-id' }),
+        process: () => console.log("Mock processing: Doing nothing"),
+        on: () => {}
+    };
+} else {
+ certificateQueue = new Queue('certificate', {
   redis: {
     host: process.env.REDIS_HOST || 'localhost',
     port: process.env.REDIS_PORT || 6379,
@@ -18,7 +28,7 @@ const certificateQueue = new Queue('certificate', {
     removeOnFail: false
   }
 });
-
+}
 // Process certificate jobs
 certificateQueue.process(async (job) => {
   const { type, data } = job.data;

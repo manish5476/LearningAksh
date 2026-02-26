@@ -22,3 +22,11 @@
 {"duration":15,"level":"http","message":"GET /favicon.ico 404 - 15ms","requestId":"0cce1231-d40c-45f8-9176-30d1cbfe248b","statusCode":404,"timestamp":"2026-02-26T09:22:05.607Z"}
 {"ip":"::ffff:127.0.0.1","level":"http","message":"POST /api/v1/auth/signup","method":"POST","params":{},"path":"/api/v1/auth/signup","query":{},"requestId":"6cfded7c-2995-4fc6-95f5-9ba88a84ffbb","timestamp":"2026-02-26T09:25:25.155Z","userAgent":"PostmanRuntime/7.51.1"}
 {"duration":351,"level":"http","message":"POST /api/v1/auth/signup 201 - 351ms","requestId":"6cfded7c-2995-4fc6-95f5-9ba88a84ffbb","statusCode":201,"timestamp":"2026-02-26T09:25:25.507Z"}
+{"level":"info","message":"👋 SIGINT received. Shutting down gracefully","timestamp":"2026-02-26T16:58:10.183Z"}
+{"level":"info","message":"👋 SIGINT received. Shutting down gracefully","timestamp":"2026-02-26T16:59:07.679Z"}
+{"level":"error","message":"Unhandled Rejection at:","timestamp":"2026-02-26T17:03:12.171Z"}
+{"level":"error","message":"Unhandled Rejection at:","timestamp":"2026-02-26T17:05:58.764Z"}
+{"level":"info","message":"👋 SIGINT received. Shutting down gracefully","timestamp":"2026-02-26T17:24:05.911Z"}
+{"level":"info","message":"👋 SIGINT received. Shutting down gracefully","timestamp":"2026-02-26T17:28:59.637Z"}
+{"level":"info","message":"👋 SIGINT received. Shutting down gracefully","timestamp":"2026-02-26T17:29:30.124Z"}
+{"level":"info","message":"👋 SIGINT received. Shutting down gracefully","timestamp":"2026-02-26T17:47:27.994Z"}

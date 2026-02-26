@@ -1,22 +1,36 @@
 const Queue = require('bull');
 const notificationService = require('../services/notificationService');
 
-const notificationQueue = new Queue('notification', {
-  redis: {
-    host: process.env.REDIS_HOST || 'localhost',
-    port: process.env.REDIS_PORT || 6379,
-    password: process.env.REDIS_PASSWORD
-  },
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: {
-      type: 'exponential',
-      delay: 2000
+let notificationQueue;
+
+if (process.env.REDIS_ENABLED === 'false') {
+  console.log("🟡 Bull Queue: Redis is disabled. Mocking notificationQueue.");
+  
+  // Robust Mock to satisfy all method calls below
+  notificationQueue = {
+    add: () => Promise.resolve({ id: 'mock-id' }),
+    process: (fn) => console.log("🟡 Notification Queue: Mock processor ready"),
+    on: (event, callback) => {},
+    // Bull's repeat/cron logic needs to be handled by the mock too
+    clean: () => Promise.resolve(),
+  };
+} else {
+  notificationQueue = new Queue('notification', {
+    redis: {
+      host: process.env.REDIS_HOST || 'localhost',
+      port: process.env.REDIS_PORT || 6379,
+      password: process.env.REDIS_PASSWORD
     },
-    removeOnComplete: true,
-    removeOnFail: false
-  }
-});
+    defaultJobOptions: {
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 2000 },
+      removeOnComplete: true,
+      removeOnFail: false
+    }
+  });
+}
+
+
 
 // Process notification jobs
 notificationQueue.process(async (job) => {
@@ -24,7 +38,7 @@ notificationQueue.process(async (job) => {
 
   console.log(`Processing notification job: ${type}`, { jobId: job.id });
 
-  switch(type) {
+  switch (type) {
     case 'single':
       await notificationService.send(data.notification);
       break;
