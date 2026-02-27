@@ -119,12 +119,29 @@ app.use(helmet({
 //   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
 //   exposedHeaders: ['X-Request-ID', 'X-RateLimit-Limit', 'X-RateLimit-Remaining']
 // };
+// ============================================
+// CORS CONFIGURATION (Fixed)
+// ============================================
 const corsOptions = {
-  origin: '*', // Allows any origin
+  origin: function (origin, callback) {
+    // 1. Allow requests with no origin (like mobile apps or curl)
+    // 2. In development, allow everything by mirroring the origin
+    // 3. In production, you can add specific domains to the logic
+    if (!origin || process.env.NODE_ENV !== 'production' || origin.includes('onrender.com')) {
+      callback(null, true);
+    } else {
+      // You can expand this logic to check against an allowed list
+      callback(null, true); // Still allowing all for now to fix your error
+    }
+  },
+  credentials: true, // Required for sessions/cookies
+  optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  // Note: credentials: true cannot be used with origin: '*'
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['X-Request-ID', 'X-RateLimit-Limit', 'X-RateLimit-Remaining']
 };
 
+app.use(cors(corsOptions));
 app.use(cors(corsOptions));
 
 // ============================================
