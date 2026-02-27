@@ -99,23 +99,30 @@ app.use(helmet({
 // ============================================
 // CORS CONFIGURATION
 // ============================================
-const corsOptions = {
-  origin: function (origin, callback) {
-    const allowedOrigins = process.env.ALLOWED_ORIGINS 
-      ? process.env.ALLOWED_ORIGINS.split(',') 
-      : ['http://localhost:3000', 'http://localhost:3001'];
+// const corsOptions = {
+//   origin: function (origin, callback) {
+//     // const allowedOrigins = process.env.ALLOWED_ORIGINS 
+//     //   ? process.env.ALLOWED_ORIGINS.split(',') 
+//     //   : ['http://localhost:3000', 'http://localhost:3001'];
     
-    if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  optionsSuccessStatus: 200,
+//     const allowedOrigins = *
+    
+//     if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+//       callback(null, true);
+//     } else {
+//       callback(new Error('Not allowed by CORS'));
+//     }
+//   },
+//   credentials: true,
+//   optionsSuccessStatus: 200,
+//   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+//   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+//   exposedHeaders: ['X-Request-ID', 'X-RateLimit-Limit', 'X-RateLimit-Remaining']
+// };
+const corsOptions = {
+  origin: '*', // Allows any origin
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-  exposedHeaders: ['X-Request-ID', 'X-RateLimit-Limit', 'X-RateLimit-Remaining']
+  // Note: credentials: true cannot be used with origin: '*'
 };
 
 app.use(cors(corsOptions));
