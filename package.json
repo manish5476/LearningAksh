@@ -32,8 +32,7 @@
     "cache:clear": "node scripts/clear-cache.js",
     "deploy:staging": "node scripts/deploy-staging.js",
     "deploy:prod": "node scripts/deploy-prod.js",
-    "prepare": "husky",
-    "postinstall": "npm run db:migrate"
+    "prepare": "husky"
   },
   "engines": {
     "node": "22.0.0",
