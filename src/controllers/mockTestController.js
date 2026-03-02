@@ -107,121 +107,230 @@ const {
       }
     });
   });
-  
   exports.submitAttempt = catchAsync(async (req, res, next) => {
-    const { answers } = req.body; // Array of { questionId, selectedOptionIndex, answerText }
-    const attemptId = req.params.attemptId;
+  const { answers } = req.body; 
+  const attemptId = req.params.attemptId;
+  
+  const attempt = await MockTestAttempt.findById(attemptId).populate('mockTest');
+  
+  if (!attempt) return next(new AppError('No attempt found with that ID', 404));
+  if (attempt.student.toString() !== req.user.id) return next(new AppError('Unauthorized', 403));
+  if (attempt.status === 'completed') return next(new AppError('Already submitted', 400));
+  
+  const questions = await MockTestQuestion.find({ mockTest: attempt.mockTest._id });
+  
+  let totalScore = 0;
+  const processedAnswers = [];
+  
+  answers.forEach(answer => {
+    const question = questions.find(q => q._id.toString() === answer.questionId);
+    if (!question) return;
     
-    const attempt = await MockTestAttempt.findById(attemptId)
-      .populate('mockTest');
+    let isCorrect = false;
+    let marksObtained = 0;
     
-    if (!attempt) {
-      return next(new AppError('No attempt found with that ID', 404));
+    if (question.options && question.options.length > 0) {
+      const correctOption = question.options.findIndex(opt => opt.isCorrect);
+      // Make sure we are strictly comparing numbers
+      isCorrect = Number(answer.selectedOptionIndex) === correctOption;
+    } else {
+      isCorrect = answer.answerText?.toLowerCase().trim() === question.correctAnswer?.toLowerCase().trim();
     }
     
-    if (attempt.student.toString() !== req.user.id) {
-      return next(new AppError('Unauthorized to submit this attempt', 403));
+    if (isCorrect) {
+      marksObtained = question.marks;
+    } else if (question.negativeMarks > 0) {
+      marksObtained = -question.negativeMarks; // Apply negative marking
     }
     
-    if (attempt.status === 'completed') {
-      return next(new AppError('This attempt has already been submitted', 400));
-    }
+    totalScore += marksObtained;
     
-    // Get all questions
-    const questions = await MockTestQuestion.find({ 
-      mockTest: attempt.mockTest._id 
-    });
-    
-    let totalScore = 0;
-    const processedAnswers = [];
-    
-    answers.forEach(answer => {
-      const question = questions.find(q => q._id.toString() === answer.questionId);
-      if (!question) return;
-      
-      let isCorrect = false;
-      let marksObtained = 0;
-      
-      if (question.options && question.options.length > 0) {
-        const correctOption = question.options.findIndex(opt => opt.isCorrect);
-        isCorrect = answer.selectedOptionIndex === correctOption;
-      } else {
-        isCorrect = answer.answerText?.toLowerCase().trim() === question.correctAnswer?.toLowerCase().trim();
-      }
-      
-      if (isCorrect) {
-        marksObtained = question.marks;
-      } else if (question.negativeMarks > 0) {
-        marksObtained = -question.negativeMarks;
-      }
-      
-      totalScore += marksObtained;
-      
-      processedAnswers.push({
-        questionId: question._id,
-        selectedOptionIndex: answer.selectedOptionIndex,
-        answerText: answer.answerText,
-        isCorrect,
-        marksObtained
-      });
-    });
-    
-    // Calculate percentage
-    const percentage = (totalScore / attempt.mockTest.totalMarks) * 100;
-    const isPassed = percentage >= attempt.mockTest.passingMarks;
-    
-    // Get total students for ranking
-    const totalStudents = await MockTestAttempt.countDocuments({
-      mockTest: attempt.mockTest._id,
-      status: 'completed'
-    });
-    
-    // Calculate rank
-    const betterScores = await MockTestAttempt.countDocuments({
-      mockTest: attempt.mockTest._id,
-      score: { $gt: totalScore }
-    });
-    
-    const rank = betterScores + 1;
-    
-    attempt.answers = processedAnswers;
-    attempt.score = totalScore;
-    attempt.percentage = percentage;
-    attempt.isPassed = isPassed;
-    attempt.completedAt = Date.now();
-    attempt.timeTaken = (attempt.completedAt - attempt.startedAt) / 1000 / 60; // in minutes
-    attempt.rank = rank;
-    attempt.totalStudents = totalStudents + 1;
-    attempt.status = 'completed';
-    
-    await attempt.save();
-    
-    // Update mock test stats
-    const { MockTest } = require('../models');
-    const mockTest = await MockTest.findById(attempt.mockTest._id);
-    
-    const avgScore = await MockTestAttempt.aggregate([
-      { $match: { mockTest: mockTest._id, status: 'completed' } },
-      { $group: { _id: null, avg: { $avg: '$score' } } }
-    ]);
-    
-    mockTest.attemptsCount = await MockTestAttempt.countDocuments({ 
-      mockTest: mockTest._id,
-      status: 'completed'
-    });
-    mockTest.averageScore = avgScore[0]?.avg || 0;
-    await mockTest.save();
-    
-    res.status(200).json({
-      status: 'success',
-      data: {
-        attempt,
-        rank,
-        totalStudents: totalStudents + 1,
-        isPassed
-      }
+    processedAnswers.push({
+      questionId: question._id,
+      selectedOptionIndex: answer.selectedOptionIndex,
+      answerText: answer.answerText,
+      isCorrect,
+      marksObtained
     });
   });
+  
+  // ✅ FIX: Prevent NaN if totalMarks is 0
+  let percentage = 0;
+  if (attempt.mockTest.totalMarks > 0) {
+    percentage = (totalScore / attempt.mockTest.totalMarks) * 100;
+  } else {
+    percentage = totalScore > 0 ? 100 : 0;
+  }
+  
+  // Ensure percentage isn't negative
+  percentage = Math.max(0, percentage); 
+  const isPassed = percentage >= (attempt.mockTest.passingMarks || 0);
+  
+  const totalStudents = await MockTestAttempt.countDocuments({
+    mockTest: attempt.mockTest._id,
+    status: 'completed'
+  });
+  
+  const betterScores = await MockTestAttempt.countDocuments({
+    mockTest: attempt.mockTest._id,
+    score: { $gt: totalScore },
+    status: 'completed'
+  });
+  
+  const rank = betterScores + 1;
+  
+  attempt.answers = processedAnswers;
+  attempt.score = totalScore;
+  attempt.percentage = percentage; // Will now save cleanly to DB
+  attempt.isPassed = isPassed;
+  attempt.completedAt = Date.now();
+  attempt.timeTaken = (attempt.completedAt - attempt.startedAt) / 1000 / 60;
+  attempt.rank = rank;
+  attempt.totalStudents = totalStudents + 1;
+  attempt.status = 'completed';
+  
+  await attempt.save();
+  
+  // Update mock test stats
+  const { MockTest } = require('../models');
+  const mockTest = await MockTest.findById(attempt.mockTest._id);
+  
+  const avgScore = await MockTestAttempt.aggregate([
+    { $match: { mockTest: mockTest._id, status: 'completed' } },
+    { $group: { _id: null, avg: { $avg: '$score' } } }
+  ]);
+  
+  mockTest.attemptsCount = await MockTestAttempt.countDocuments({ 
+    mockTest: mockTest._id,
+    status: 'completed'
+  });
+  mockTest.averageScore = avgScore[0]?.avg || 0;
+  await mockTest.save();
+  
+  res.status(200).json({
+    status: 'success',
+    data: {
+      attempt,
+      rank,
+      totalStudents: attempt.totalStudents,
+      isPassed
+    }
+  });
+});
+  // exports.submitAttempt = catchAsync(async (req, res, next) => {
+  //   const { answers } = req.body; // Array of { questionId, selectedOptionIndex, answerText }
+  //   const attemptId = req.params.attemptId;
+    
+  //   const attempt = await MockTestAttempt.findById(attemptId)
+  //     .populate('mockTest');
+    
+  //   if (!attempt) {
+  //     return next(new AppError('No attempt found with that ID', 404));
+  //   }
+    
+  //   if (attempt.student.toString() !== req.user.id) {
+  //     return next(new AppError('Unauthorized to submit this attempt', 403));
+  //   }
+    
+  //   if (attempt.status === 'completed') {
+  //     return next(new AppError('This attempt has already been submitted', 400));
+  //   }
+    
+  //   // Get all questions
+  //   const questions = await MockTestQuestion.find({ 
+  //     mockTest: attempt.mockTest._id 
+  //   });
+    
+  //   let totalScore = 0;
+  //   const processedAnswers = [];
+    
+  //   answers.forEach(answer => {
+  //     const question = questions.find(q => q._id.toString() === answer.questionId);
+  //     if (!question) return;
+      
+  //     let isCorrect = false;
+  //     let marksObtained = 0;
+      
+  //     if (question.options && question.options.length > 0) {
+  //       const correctOption = question.options.findIndex(opt => opt.isCorrect);
+  //       isCorrect = answer.selectedOptionIndex === correctOption;
+  //     } else {
+  //       isCorrect = answer.answerText?.toLowerCase().trim() === question.correctAnswer?.toLowerCase().trim();
+  //     }
+      
+  //     if (isCorrect) {
+  //       marksObtained = question.marks;
+  //     } else if (question.negativeMarks > 0) {
+  //       marksObtained = -question.negativeMarks;
+  //     }
+      
+  //     totalScore += marksObtained;
+      
+  //     processedAnswers.push({
+  //       questionId: question._id,
+  //       selectedOptionIndex: answer.selectedOptionIndex,
+  //       answerText: answer.answerText,
+  //       isCorrect,
+  //       marksObtained
+  //     });
+  //   });
+    
+  //   // Calculate percentage
+  //   const percentage = (totalScore / attempt.mockTest.totalMarks) * 100;
+  //   const isPassed = percentage >= attempt.mockTest.passingMarks;
+    
+  //   // Get total students for ranking
+  //   const totalStudents = await MockTestAttempt.countDocuments({
+  //     mockTest: attempt.mockTest._id,
+  //     status: 'completed'
+  //   });
+    
+  //   // Calculate rank
+  //   const betterScores = await MockTestAttempt.countDocuments({
+  //     mockTest: attempt.mockTest._id,
+  //     score: { $gt: totalScore }
+  //   });
+    
+  //   const rank = betterScores + 1;
+    
+  //   attempt.answers = processedAnswers;
+  //   attempt.score = totalScore;
+  //   attempt.percentage = percentage;
+  //   attempt.isPassed = isPassed;
+  //   attempt.completedAt = Date.now();
+  //   attempt.timeTaken = (attempt.completedAt - attempt.startedAt) / 1000 / 60; // in minutes
+  //   attempt.rank = rank;
+  //   attempt.totalStudents = totalStudents + 1;
+  //   attempt.status = 'completed';
+    
+  //   await attempt.save();
+    
+  //   // Update mock test stats
+  //   const { MockTest } = require('../models');
+  //   const mockTest = await MockTest.findById(attempt.mockTest._id);
+    
+  //   const avgScore = await MockTestAttempt.aggregate([
+  //     { $match: { mockTest: mockTest._id, status: 'completed' } },
+  //     { $group: { _id: null, avg: { $avg: '$score' } } }
+  //   ]);
+    
+  //   mockTest.attemptsCount = await MockTestAttempt.countDocuments({ 
+  //     mockTest: mockTest._id,
+  //     status: 'completed'
+  //   });
+  //   mockTest.averageScore = avgScore[0]?.avg || 0;
+  //   await mockTest.save();
+    
+  //   res.status(200).json({
+  //     status: 'success',
+  //     data: {
+  //       attempt,
+  //       rank,
+  //       totalStudents: totalStudents + 1,
+  //       isPassed
+  //     }
+  //   });
+  // });
   
   exports.getMyAttempts = catchAsync(async (req, res, next) => {
     const attempts = await MockTestAttempt.find({ 
