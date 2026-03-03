@@ -16,7 +16,7 @@ router.use(authController.protect);
 router.get('/my-enrollments', enrollmentController.getMyEnrollments);
 router.get('/recommendations', enrollmentController.getRecommendedCourses);
 router.get('/timeline', enrollmentController.getStudentTimeline);
-router.post('/enroll-free', enrollmentController.enrollInFreeCourse); // Updated to match secure controller
+// router.post('/enroll-free', enrollmentController.enrollInFreeCourse); // Updated to match secure controller
 router.post('/bulk-enroll', enrollmentController.bulkEnroll);
 
 // --- Instructor ---

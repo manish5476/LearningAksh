@@ -93,30 +93,80 @@ exports.bulkEnroll = catchAsync(async (req, res, next) => {
 });
 
 exports.getMyEnrollments = catchAsync(async (req, res, next) => {
-  const enrollments = await Enrollment.find({ student: req.user.id, isActive: true })
-    .populate({
-      path: 'course',
-      match: { isDeleted: false },
-      populate: { path: 'instructor', select: 'firstName lastName' }
-    })
-    .populate('payment')
-    .lean(); // Faster querying
-  
+  // 1. Fetch active enrollments
+  const enrollments = await Enrollment.find({ 
+    student: req.user.id, 
+    isActive: true 
+  })
+  .populate({
+    path: 'course',
+    match: { isDeleted: false },
+    select: 'title thumbnail slug totalLessons totalSections' // Get totals for the progress bar calculation
+  })
+  .lean();
+
+  // 2. Filter out any null courses (from soft deletes)
   const validEnrollments = enrollments.filter(e => e.course !== null);
-  
-  // Inject progress efficiently
-  const enrollmentsWithProgress = await Promise.all(
+
+  // 3. Inject Detailed Progress
+  const enrollmentsWithFullProgress = await Promise.all(
     validEnrollments.map(async (enrollment) => {
-      const progress = await ProgressTracking.findOne({ student: req.user.id, course: enrollment.course._id }).lean();
+      const progress = await ProgressTracking.findOne({ 
+        student: req.user.id, 
+        course: enrollment.course._id 
+      }).lean();
+
       return {
         ...enrollment,
-        progress: progress || { courseProgressPercentage: 0, completedLessons: [] }
+        // Detailed Progress Object for the Frontend
+        progress: progress ? {
+          percentage: progress.courseProgressPercentage || 0,
+          completedLessonsCount: progress.completedLessons?.length || 0,
+          completedQuizzesCount: progress.completedQuizzes?.length || 0,
+          isCompleted: progress.isCompleted || false,
+          lastActivity: progress.lastActivity,
+          // Calculate remaining items
+          remainingLessons: (enrollment.course.totalLessons || 0) - (progress.completedLessons?.length || 0)
+        } : { 
+          percentage: 0, 
+          completedLessonsCount: 0, 
+          isCompleted: false 
+        }
       };
     })
   );
-  
-  res.status(200).json({ status: 'success', results: enrollmentsWithProgress.length, data: { enrollments: enrollmentsWithProgress } });
+
+  res.status(200).json({
+    status: 'success',
+    results: enrollmentsWithFullProgress.length,
+    data: { enrollments: enrollmentsWithFullProgress }
+  });
 });
+// exports.getMyEnrollments = catchAsync(async (req, res, next) => {
+//   const enrollments = await Enrollment.find({ student: req.user.id, isActive: true })
+//     .populate({
+//       path: 'course',
+//       match: { isDeleted: false },
+//       populate: { path: 'instructor', select: 'firstName lastName' }
+//     })
+//     .populate('payment')
+//     .lean(); // Faster querying
+  
+//   const validEnrollments = enrollments.filter(e => e.course !== null);
+  
+//   // Inject progress efficiently
+//   const enrollmentsWithProgress = await Promise.all(
+//     validEnrollments.map(async (enrollment) => {
+//       const progress = await ProgressTracking.findOne({ student: req.user.id, course: enrollment.course._id }).lean();
+//       return {
+//         ...enrollment,
+//         progress: progress || { courseProgressPercentage: 0, completedLessons: [] }
+//       };
+//     })
+//   );
+  
+//   res.status(200).json({ status: 'success', results: enrollmentsWithProgress.length, data: { enrollments: enrollmentsWithProgress } });
+// });
 
 exports.checkEnrollment = catchAsync(async (req, res, next) => {
   const enrollment = await Enrollment.findOne({ student: req.user.id, course: req.params.courseId, isActive: true })
