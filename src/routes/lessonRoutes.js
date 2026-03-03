@@ -2,20 +2,32 @@ const express = require('express');
 const lessonController = require('../controllers/lessonController');
 const authController = require('../controllers/authController');
 
+// mergeParams: true allows access to /courses/:courseId/sections/:sectionId/lessons
 const router = express.Router({ mergeParams: true });
 
-// Public route for accessing lesson content (with access control)
+// ==========================================
+// PUBLIC / STUDENT ROUTES (With Access Control)
+// ==========================================
+// Students need to be logged in to access lesson details, but we handle the paywall logic inside the controller
 router.get('/:id/access', authController.protect, lessonController.getLessonWithDetails);
 
-// Protect all routes
+// Student progress endpoints
+router.post('/:id/complete', authController.protect, lessonController.markAsCompleted);
+router.get('/:id/progress', authController.protect, lessonController.getLessonProgress);
+
+// ==========================================
+// PROTECTED INSTRUCTOR/ADMIN ROUTES
+// ==========================================
 router.use(authController.protect);
+router.use(authController.restrictTo('instructor', 'admin'));
 
 router
   .route('/')
   .post(lessonController.setSectionCourseIds, lessonController.createLesson)
-  .get(lessonController.getAllLessons);
+  .get(lessonController.setSectionCourseIds, lessonController.getAllLessons); // Enforces fetching lessons only for the specific section
 
-router.post('/reorder/:sectionId', lessonController.reorderLessons);
+// Reordering uses PATCH now (matching our bulkWrite standard)
+router.patch('/reorder', lessonController.reorderLessons); 
 
 router
   .route('/:id')
@@ -23,4 +35,40 @@ router
   .patch(lessonController.updateLesson)
   .delete(lessonController.deleteLesson);
 
+// State Management & Uploads
+router.patch('/:id/publish', lessonController.publishLesson);
+router.patch('/:id/unpublish', lessonController.unpublishLesson);
+
+// Placeholder routes for handling actual file uploads (Requires Multer middleware setup later)
+router.post('/:id/upload-video', lessonController.uploadVideo);
+router.post('/:id/upload-attachment', lessonController.uploadAttachment);
+
 module.exports = router;
+
+
+// const express = require('express');
+// const lessonController = require('../controllers/lessonController');
+// const authController = require('../controllers/authController');
+
+// const router = express.Router({ mergeParams: true });
+
+// // Public route for accessing lesson content (with access control)
+// router.get('/:id/access', authController.protect, lessonController.getLessonWithDetails);
+
+// // Protect all routes
+// router.use(authController.protect);
+
+// router
+//   .route('/')
+//   .post(lessonController.setSectionCourseIds, lessonController.createLesson)
+//   .get(lessonController.getAllLessons);
+
+// router.post('/reorder/:sectionId', lessonController.reorderLessons);
+
+// router
+//   .route('/:id')
+//   .get(lessonController.getLesson)
+//   .patch(lessonController.updateLesson)
+//   .delete(lessonController.deleteLesson);
+
+// module.exports = router;
