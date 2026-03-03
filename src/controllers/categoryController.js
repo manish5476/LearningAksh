@@ -78,7 +78,6 @@ exports.updateCategory = catchAsync(async (req, res, next) => {
   if (!category) {
     return next(new AppError('No category found with that ID', 404));
   }
-
   res.status(200).json({
     status: 'success',
     data: { category }

@@ -207,14 +207,32 @@ exports.getCourseStudents = catchAsync(async (req, res, next) => {
   res.status(200).json({ status: 'success', results: enrollments.length, data: { students: enrollments.map(e => e.student) } });
 });
 
-exports.getInstructorCourseStats = catchAsync(async (req, res, next) => {
-  const stats = await Enrollment.aggregate([
-    { $match: { course: req.params.id, isActive: true } },
-    { $lookup: { from: 'payments', localField: 'payment', foreignField: '_id', as: 'paymentDetails' } },
-    { $group: { _id: '$course', totalStudents: { $sum: 1 }, totalRevenue: { $sum: { $arrayElemAt: ['$paymentDetails.amount', 0] } } } }
-  ]);
-  res.status(200).json({ status: 'success', data: { stats: stats[0] || { totalStudents: 0, totalRevenue: 0 } } });
+
+exports.getInstructorCourse = catchAsync(async (req, res, next) => {
+  // Find course by ID and ensure the logged-in user is the instructor
+  const course = await Course.findOne({ 
+    _id: req.params.id, 
+    instructor: req.user.id,
+    isDeleted: false 
+  });
+
+  if (!course) {
+    return next(new AppError('Course not found or unauthorized', 404));
+  }
+
+  res.status(200).json({
+    status: 'success',
+    data: { data: course }
+  });
 });
+// exports.getInstructorCourseStats = catchAsync(async (req, res, next) => {
+//   const stats = await Enrollment.aggregate([
+//     { $match: { course: req.params.id, isActive: true } },
+//     { $lookup: { from: 'payments', localField: 'payment', foreignField: '_id', as: 'paymentDetails' } },
+//     { $group: { _id: '$course', totalStudents: { $sum: 1 }, totalRevenue: { $sum: { $arrayElemAt: ['$paymentDetails.amount', 0] } } } }
+//   ]);
+//   res.status(200).json({ status: 'success', data: { stats: stats[0] || { totalStudents: 0, totalRevenue: 0 } } });
+// });
 
 // ==========================================
 // STATE MANAGEMENT & FACTORY CRUD
@@ -278,7 +296,6 @@ exports.updateCourse = catchAsync(async (req, res, next) => {
 });
 
 exports.deleteCourse = factory.deleteOne(Course);
-
 
 
 
@@ -664,12 +681,7 @@ exports.deleteCourse = factory.deleteOne(Course);
 // //   ]
 // // });
 
-// // exports.getCourse = factory.getOne(Course, {
-// //   populate: [
-// //     { path: 'category', select: 'name slug' },
-// //     { path: 'instructor', select: 'firstName lastName email profilePicture' }
-// //   ]
-// // });
+
 
 // // exports.updateCourse = factory.updateOne(Course);
 // // exports.deleteCourse = factory.deleteOne(Course);
