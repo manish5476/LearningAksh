@@ -13,7 +13,7 @@ router.use(authController.protect);
 // ==========================================
 
 // --- Student ---
-router.get('/my-enrollments', enrollmentController.getMyEnrollments);
+// router.get('/my-enrollments', enrollmentController.getMyEnrollments);
 router.get('/recommendations', enrollmentController.getRecommendedCourses);
 router.get('/timeline', enrollmentController.getStudentTimeline);
 // router.post('/enroll-free', enrollmentController.enrollInFreeCourse); // Updated to match secure controller
@@ -42,10 +42,15 @@ router.post('/complete/:courseId', enrollmentController.completeCourse);
 router.use('/course/:courseId/students', authController.restrictTo('instructor', 'admin'), enrollmentController.getCourseStudents);
 router.get('/analytics/:courseId', authController.restrictTo('instructor', 'admin'), enrollmentController.getCourseAnalytics);
 router.get('/completion-rate/:courseId', enrollmentController.getCompletionRate);
-router.get('/count/:courseId?', enrollmentController.getActiveEnrollmentsCount); 
+router.get('/count/:courseId?', enrollmentController.getActiveEnrollmentsCount);
 router.post('/remind/:courseId', authController.restrictTo('instructor', 'admin'), enrollmentController.sendReminder);
 router.get('/export/course/:courseId', authController.restrictTo('instructor', 'admin'), enrollmentController.exportEnrollments);
 
+router.post('/enroll', enrollmentController.enrollStudent);
+// Get all courses the current user is enrolled in
+router.get('/my-enrollments', authController.protect, enrollmentController.getMyEnrollments);
+// Enroll in a specific course
+router.post('/:id/enroll', authController.protect, enrollmentController.enrollInCourse);
 // ==========================================
 // 3. DYNAMIC ENROLLMENT ID ROUTES (/:id)
 // ==========================================
@@ -63,8 +68,7 @@ router.post('/:id/transfer', enrollmentController.transferEnrollment);
 router.get('/:id/invoices', enrollmentController.getEnrollmentInvoices);
 
 // Standard Factory CRUD
-router.route('/')
-  .get(enrollmentController.getAllEnrollments);
+router.route('/').get(enrollmentController.getAllEnrollments);
 
 router.route('/:id')
   .get(enrollmentController.getEnrollment)

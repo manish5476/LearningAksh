@@ -84,6 +84,7 @@ exports.getCourseWithContent = catchAsync(async (req, res, next) => {
   let progress = null;
 
   if (currentUser && !isOwner) {
+    // const enrollment = await Enrollment.findOne({ student: currentUser, course: course._id, isActive: true });
     const enrollment = await Enrollment.findOne({ student: currentUser, course: course._id, isActive: true });
     isEnrolled = !!enrollment;
 
