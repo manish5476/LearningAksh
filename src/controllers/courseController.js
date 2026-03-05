@@ -255,24 +255,24 @@ exports.formatQueryBooleans = (req, res, next) => {
   next();
 };
 
-exports.getAllCourses = [
-  exports.formatQueryBooleans, 
-  factory.getAll(Course, {
-    searchFields: ['title', 'description', 'subtitle', 'tags'],
-    populate: [
-      { path: 'category', select: 'name slug' },
-      { path: 'instructor', select: 'firstName lastName profilePicture' }
-    ]
-  })
-];
+// exports.getAllCourses = [
+//   exports.formatQueryBooleans, 
+//   factory.getAll(Course, {
+//     searchFields: ['title', 'description', 'subtitle', 'tags'],
+//     populate: [
+//       { path: 'category', select: 'name slug' },
+//       { path: 'instructor', select: 'firstName lastName profilePicture' }
+//     ]
+//   })
+// ];
 
-// exports.getAllCourses = factory.getAll(Course, {
-//   searchFields: ['title', 'description', 'subtitle', 'tags'],
-//   populate: [
-//     { path: 'category', select: 'name slug' },
-//     { path: 'instructor', select: 'firstName lastName profilePicture' }
-//   ]
-// });
+exports.getAllCourses = factory.getAll(Course, {
+  searchFields: ['title', 'description', 'subtitle', 'tags'],
+  populate: [
+    { path: 'category', select: 'name slug' },
+    { path: 'instructor', select: 'firstName lastName profilePicture' }
+  ]
+});
 
 exports.getCourse = factory.getOne(Course, {
   populate: [
