@@ -245,13 +245,34 @@ exports.approveCourse = catchAsync(async (req, res, next) => {
   res.status(200).json({ status: 'success', data: { course } });
 });
 
-exports.getAllCourses = factory.getAll(Course, {
-  searchFields: ['title', 'description', 'subtitle', 'tags'],
-  populate: [
-    { path: 'category', select: 'name slug' },
-    { path: 'instructor', select: 'firstName lastName profilePicture' }
-  ]
-});
+
+exports.formatQueryBooleans = (req, res, next) => {
+  // Convert string booleans to actual booleans for the query
+  Object.keys(req.query).forEach(key => {
+    if (req.query[key] === 'true') req.query[key] = true;
+    if (req.query[key] === 'false') req.query[key] = false;
+  });
+  next();
+};
+
+exports.getAllCourses = [
+  exports.formatQueryBooleans, 
+  factory.getAll(Course, {
+    searchFields: ['title', 'description', 'subtitle', 'tags'],
+    populate: [
+      { path: 'category', select: 'name slug' },
+      { path: 'instructor', select: 'firstName lastName profilePicture' }
+    ]
+  })
+];
+
+// exports.getAllCourses = factory.getAll(Course, {
+//   searchFields: ['title', 'description', 'subtitle', 'tags'],
+//   populate: [
+//     { path: 'category', select: 'name slug' },
+//     { path: 'instructor', select: 'firstName lastName profilePicture' }
+//   ]
+// });
 
 exports.getCourse = factory.getOne(Course, {
   populate: [
