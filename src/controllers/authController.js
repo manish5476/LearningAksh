@@ -1,3 +1,5 @@
+
+
 const jwt = require('jsonwebtoken');
 const { promisify } = require('util');
 const crypto = require('crypto');
@@ -25,7 +27,7 @@ const createSendToken = (user, statusCode, res) => {
       Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000
     ),
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production'
+    secure: process.env.NODE_ENV === 'production' ? true : false
   };
 
   res.cookie('jwt', token, cookieOptions);
@@ -40,50 +42,36 @@ const createSendToken = (user, statusCode, res) => {
 };
 
 exports.signup = catchAsync(async (req, res, next) => {
-  // 1) Check if passwords match manually
-  if (req.body.password !== req.body.passwordConfirm) {
-    return next(new AppError('Passwords do not match!', 400));
-  }
+  const { email, password, firstName, lastName, role, ...otherData } = req.body;
 
-  // 2) Check if user already exists
-  const existingUser = await User.findOne({ email: req.body.email });
+  // Check if user already exists
+  const existingUser = await User.findOne({ email });
   if (existingUser) {
     return next(new AppError('User already exists with this email', 400));
   }
 
-  // 3) STRICTLY control the role (Prevent 'admin' injection)
-  const allowedRoles = ['student', 'instructor'];
-  const assignedRole = allowedRoles.includes(req.body.role) ? req.body.role : 'student';
-
-  // 4) Create user (Explicitly defining fields prevents mass-assignment hacks)
+  // Create user
   const newUser = await User.create({
-    firstName: req.body.firstName,
-    lastName: req.body.lastName,
-    email: req.body.email,
-    password: req.body.password,
-    role: assignedRole,
-    gender: req.body.gender,
-    phoneNumber: req.body.phoneNumber
+    email,
+    password,
+    firstName,
+    lastName,
+    role: role || 'student',
+    ...otherData
   });
 
-  try {
-    // 5) Create role-specific profile
-    if (newUser.role === 'instructor') {
-      await InstructorProfile.create({
-        user: newUser._id,
-        expertise: req.body.expertise || [],
-        bio: req.body.bio || ''
-      });
-    } else if (newUser.role === 'student') {
-      await StudentProfile.create({
-        user: newUser._id,
-        interests: req.body.interests || []
-      });
-    }
-  } catch (err) {
-    // If profile creation fails, delete the orphaned user and throw error
-    await User.findByIdAndDelete(newUser._id);
-    return next(new AppError('Failed to create user profile. Please try again.', 500));
+  // Create role-specific profile
+  if (newUser.role === 'instructor') {
+    await InstructorProfile.create({
+      user: newUser._id,
+      expertise: req.body.expertise || [],
+      bio: req.body.bio || ''
+    });
+  } else if (newUser.role === 'student') {
+    await StudentProfile.create({
+      user: newUser._id,
+      interests: req.body.interests || []
+    });
   }
 
   createSendToken(newUser, 201, res);
@@ -199,11 +187,6 @@ exports.forgotPassword = catchAsync(async (req, res, next) => {
 });
 
 exports.resetPassword = catchAsync(async (req, res, next) => {
-  // Manually verify password confirmation
-  if (req.body.password !== req.body.passwordConfirm) {
-    return next(new AppError('Passwords do not match!', 400));
-  }
-
   const hashedToken = crypto
     .createHash('sha256')
     .update(req.params.token)
@@ -227,11 +210,6 @@ exports.resetPassword = catchAsync(async (req, res, next) => {
 });
 
 exports.updatePassword = catchAsync(async (req, res, next) => {
-  // Manually verify password confirmation
-  if (req.body.password !== req.body.passwordConfirm) {
-    return next(new AppError('New passwords do not match!', 400));
-  }
-
   const user = await User.findById(req.user.id).select('+password');
 
   if (!(await user.correctPassword(req.body.passwordCurrent, user.password))) {
@@ -239,10 +217,26 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
   }
 
   user.password = req.body.password;
+  user.passwordConfirm = req.body.passwordConfirm;
   await user.save();
 
   createSendToken(user, 200, res);
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 // const jwt = require('jsonwebtoken');
@@ -272,7 +266,7 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
 //       Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000
 //     ),
 //     httpOnly: true,
-//     secure: process.env.NODE_ENV === 'production' ? true : false
+//     secure: process.env.NODE_ENV === 'production'
 //   };
 
 //   res.cookie('jwt', token, cookieOptions);
@@ -287,36 +281,50 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
 // };
 
 // exports.signup = catchAsync(async (req, res, next) => {
-//   const { email, password, firstName, lastName, role, ...otherData } = req.body;
+//   // 1) Check if passwords match manually
+//   if (req.body.password !== req.body.passwordConfirm) {
+//     return next(new AppError('Passwords do not match!', 400));
+//   }
 
-//   // Check if user already exists
-//   const existingUser = await User.findOne({ email });
+//   // 2) Check if user already exists
+//   const existingUser = await User.findOne({ email: req.body.email });
 //   if (existingUser) {
 //     return next(new AppError('User already exists with this email', 400));
 //   }
 
-//   // Create user
+//   // 3) STRICTLY control the role (Prevent 'admin' injection)
+//   const allowedRoles = ['student', 'instructor'];
+//   const assignedRole = allowedRoles.includes(req.body.role) ? req.body.role : 'student';
+
+//   // 4) Create user (Explicitly defining fields prevents mass-assignment hacks)
 //   const newUser = await User.create({
-//     email,
-//     password,
-//     firstName,
-//     lastName,
-//     role: role || 'student',
-//     ...otherData
+//     firstName: req.body.firstName,
+//     lastName: req.body.lastName,
+//     email: req.body.email,
+//     password: req.body.password,
+//     role: assignedRole,
+//     gender: req.body.gender,
+//     phoneNumber: req.body.phoneNumber
 //   });
 
-//   // Create role-specific profile
-//   if (newUser.role === 'instructor') {
-//     await InstructorProfile.create({
-//       user: newUser._id,
-//       expertise: req.body.expertise || [],
-//       bio: req.body.bio || ''
-//     });
-//   } else if (newUser.role === 'student') {
-//     await StudentProfile.create({
-//       user: newUser._id,
-//       interests: req.body.interests || []
-//     });
+//   try {
+//     // 5) Create role-specific profile
+//     if (newUser.role === 'instructor') {
+//       await InstructorProfile.create({
+//         user: newUser._id,
+//         expertise: req.body.expertise || [],
+//         bio: req.body.bio || ''
+//       });
+//     } else if (newUser.role === 'student') {
+//       await StudentProfile.create({
+//         user: newUser._id,
+//         interests: req.body.interests || []
+//       });
+//     }
+//   } catch (err) {
+//     // If profile creation fails, delete the orphaned user and throw error
+//     await User.findByIdAndDelete(newUser._id);
+//     return next(new AppError('Failed to create user profile. Please try again.', 500));
 //   }
 
 //   createSendToken(newUser, 201, res);
@@ -432,6 +440,11 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
 // });
 
 // exports.resetPassword = catchAsync(async (req, res, next) => {
+//   // Manually verify password confirmation
+//   if (req.body.password !== req.body.passwordConfirm) {
+//     return next(new AppError('Passwords do not match!', 400));
+//   }
+
 //   const hashedToken = crypto
 //     .createHash('sha256')
 //     .update(req.params.token)
@@ -455,6 +468,11 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
 // });
 
 // exports.updatePassword = catchAsync(async (req, res, next) => {
+//   // Manually verify password confirmation
+//   if (req.body.password !== req.body.passwordConfirm) {
+//     return next(new AppError('New passwords do not match!', 400));
+//   }
+
 //   const user = await User.findById(req.user.id).select('+password');
 
 //   if (!(await user.correctPassword(req.body.passwordCurrent, user.password))) {
@@ -462,7 +480,6 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
 //   }
 
 //   user.password = req.body.password;
-//   user.passwordConfirm = req.body.passwordConfirm;
 //   await user.save();
 
 //   createSendToken(user, 200, res);
