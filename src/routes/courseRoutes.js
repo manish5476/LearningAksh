@@ -31,7 +31,7 @@ router.use(authController.restrictTo('instructor', 'admin'));
 
 router.get('/instructor/my-courses', courseController.getMyCourses);
 router.get('/instructor/:id/students', courseController.getCourseStudents);
-router.get('/instructor/:id/stats', courseController.getInstructorCourseStats);
+// router.get('/instructor/:id/stats', courseController.getInstructorCourseStats);
 router.get('/instructor/courses/:id', courseController.getInstructorCourse);
 // Deep Clone Feature
 router.post('/instructor/:id/clone', courseController.cloneCourse);
