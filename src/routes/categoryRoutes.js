@@ -10,7 +10,7 @@ const router = express.Router();
 // 1. Static Routes (Must come before /:id)
 router.get('/tree', categoryController.getCategoryTree);
 router.get('/popular', categoryController.getPopularCategories);
-router.get('/check-slug/:slug', categoryController.checkCategorySlug); // Added for Angular
+// router.get('/check-slug/:slug', categoryController.checkCategorySlug); // Added for Angular
 
 // 2. Standard Get All
 router.get('/', categoryController.getAllCategories);
@@ -27,7 +27,7 @@ router.use(authController.protect);
 router.use(authController.restrictTo('admin'));
 
 // 1. Static Admin Routes
-router.patch('/bulk-update', categoryController.bulkUpdateCategories); // Adjusted to PATCH to match REST standards
+// router.patch('/bulk-update', categoryController.bulkUpdateCategories); // Adjusted to PATCH to match REST standards
 
 // 2. Dynamic /:id Admin Routes
 router.post('/', categoryController.createCategory);
