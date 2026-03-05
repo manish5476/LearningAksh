@@ -1,11 +1,13 @@
-'use strict';
+
+  'use strict';
 
 const AppError = require("../utils/appError");
-const ApiFeatures = require("./ApiFeatures"); // Make sure this file exists!
+const ApiFeatures = require("./ApiFeatures");
 const catchAsync = require("../utils/catchAsync");
 
 /**
  * Helper to determine ownership scope based on Ed-Tech Schemas.
+ * Prevents students from updating other students' data, or instructors modifying other courses.
  */
 const getOwnershipFilter = (Model, req) => {
   const filter = {};
@@ -13,7 +15,7 @@ const getOwnershipFilter = (Model, req) => {
   // If no user exists on request, or user is an Admin, skip ownership locks
   if (!req.user || req.user.role === 'admin') return filter;
 
-  // Dynamically lock queries to the current user's ID
+  // Dynamically lock queries to the current user's ID based on the Schema structure
   if (Model.schema.path("instructor")) filter.instructor = req.user.id;
   else if (Model.schema.path("student")) filter.student = req.user.id;
   else if (Model.schema.path("user")) filter.user = req.user.id;
@@ -23,14 +25,16 @@ const getOwnershipFilter = (Model, req) => {
 
 exports.getAll = (Model, options = {}) =>
   catchAsync(async (req, res, next) => {
-    // Merge req.filter (for nested routes) with Ownership Filter
-    let filter = { ...req.filter, ...getOwnershipFilter(Model, req) }; 
+    // 1. Base Filter (Allows nested routes like GET /courses/:courseId/reviews)
+    let filter = { ...req.filter }; 
 
+    // 2. Automated status & soft-delete management
     if (Model.schema.path("isDeleted")) filter.isDeleted = { $ne: true };
     if (Model.schema.path("isActive") && !options.includeInactive) {
       filter.isActive = { $ne: false };
     }
 
+    // 3. Build Features
     const features = new ApiFeatures(Model.find(filter), req.query)
       .filter()
       .search(options.searchFields || ["name", "title", "description"])
@@ -54,43 +58,35 @@ exports.getAll = (Model, options = {}) =>
 
 exports.getOne = (Model, options = {}) =>
   catchAsync(async (req, res, next) => {
-    // FIXED: Now respects req.filter for secure single fetches!
-    let filter = { _id: req.params.id, ...req.filter };
+    let query = Model.findOne({ _id: req.params.id });
 
-    // Apply ownership filter on GET if explicitly requested via options
-    if (options.requireOwnership) {
-        filter = { ...filter, ...getOwnershipFilter(Model, req) };
-    }
+    // Ensure soft-deleted items aren't fetched by ID
+    if (Model.schema.path("isDeleted")) query = query.where({ isDeleted: { $ne: true } });
 
-    if (Model.schema.path("isDeleted")) filter.isDeleted = { $ne: true };
-
-    let query = Model.findOne(filter);
     if (options.populate) query = query.populate(options.populate);
-    
     const doc = await query.lean();
 
-    if (!doc) return next(new AppError("Document not found or access denied", 404));
+    if (!doc) return next(new AppError("Document not found", 404));
 
     res.status(200).json({ status: "success", data: { data: doc } });
   });
 
 exports.createOne = (Model) =>
   catchAsync(async (req, res, next) => {
+    // Zero-Trust: Auto-assign ownership based on the currently logged-in user
     if (req.user) {
       if (Model.schema.path("instructor") && !req.body.instructor) req.body.instructor = req.user.id;
       if (Model.schema.path("student") && !req.body.student) req.body.student = req.user.id;
       if (Model.schema.path("user") && !req.body.user) req.body.user = req.user.id;
     }
 
-    // Merging req.body with req.filter allows nested creates (e.g. creating a lesson inside a specific course route)
-    const finalData = { ...req.body, ...req.filter };
-    const doc = await Model.create(finalData);
-    
+    const doc = await Model.create(req.body);
     res.status(201).json({ status: "success", data: { data: doc } });
   });
 
 exports.updateOne = (Model) =>
   catchAsync(async (req, res, next) => {
+    // Determine if the user is authorized to update this specific document
     const filter = { _id: req.params.id, ...getOwnershipFilter(Model, req) };
 
     const doc = await Model.findOneAndUpdate(
@@ -105,6 +101,7 @@ exports.updateOne = (Model) =>
 
 exports.deleteOne = (Model) =>
   catchAsync(async (req, res, next) => {
+    // Only the owner or an admin can delete
     const filter = { _id: req.params.id, ...getOwnershipFilter(Model, req) };
     const hasSoftDelete = !!Model.schema.path("isDeleted");
     let doc;
@@ -128,7 +125,8 @@ exports.bulkCreate = (Model) =>
     if (!Array.isArray(req.body)) return next(new AppError("Request body must be an array", 400));
 
     const docs = req.body.map((item) => {
-      const newItem = { ...item, ...req.filter }; // Respect nested routes
+      const newItem = { ...item };
+      // Auto-assign ownership if applicable
       if (req.user) {
         if (Model.schema.path("instructor") && !newItem.instructor) newItem.instructor = req.user.id;
         if (Model.schema.path("student") && !newItem.student) newItem.student = req.user.id;
@@ -146,6 +144,7 @@ exports.bulkUpdate = (Model) =>
     const { ids, updates } = req.body;
     if (!Array.isArray(ids) || !updates) return next(new AppError("IDs and Updates required", 400));
 
+    // Lock bulk updates to user's own documents unless Admin
     const filter = { _id: { $in: ids }, ...getOwnershipFilter(Model, req) };
 
     const result = await Model.updateMany(
@@ -162,6 +161,7 @@ exports.bulkDelete = (Model) =>
     const { ids, hardDelete = false } = req.body;
     if (!Array.isArray(ids)) return next(new AppError("IDs array required", 400));
 
+    // Lock bulk deletes to user's own documents unless Admin
     const filter = { _id: { $in: ids }, ...getOwnershipFilter(Model, req) };
     const hasSoftDelete = !!Model.schema.path("isDeleted");
     let result;
@@ -197,23 +197,29 @@ exports.restoreOne = (Model) =>
 
 exports.count = (Model) =>
   catchAsync(async (req, res, next) => {
-    let filter = { ...req.filter, ...getOwnershipFilter(Model, req) };
+    let filter = { ...req.filter };
     if (Model.schema.path("isDeleted")) filter.isDeleted = { $ne: true };
 
-    const count = await Model.countDocuments(filter); // Simplified count logic for performance
+    const features = new ApiFeatures(Model.find(filter), req.query).filter();
+    const count = await Model.countDocuments(features.query.getFilter());
 
     res.status(200).json({ status: "success", data: { count } });
   });
-  
-  // 'use strict';
+
+
+
+
+
+
+
+//   'use strict';
 
 // const AppError = require("../utils/appError");
-// const ApiFeatures = require("./ApiFeatures");
+// const ApiFeatures = require("./ApiFeatures"); // Make sure this file exists!
 // const catchAsync = require("../utils/catchAsync");
 
 // /**
 //  * Helper to determine ownership scope based on Ed-Tech Schemas.
-//  * Prevents students from updating other students' data, or instructors modifying other courses.
 //  */
 // const getOwnershipFilter = (Model, req) => {
 //   const filter = {};
@@ -221,7 +227,7 @@ exports.count = (Model) =>
 //   // If no user exists on request, or user is an Admin, skip ownership locks
 //   if (!req.user || req.user.role === 'admin') return filter;
 
-//   // Dynamically lock queries to the current user's ID based on the Schema structure
+//   // Dynamically lock queries to the current user's ID
 //   if (Model.schema.path("instructor")) filter.instructor = req.user.id;
 //   else if (Model.schema.path("student")) filter.student = req.user.id;
 //   else if (Model.schema.path("user")) filter.user = req.user.id;
@@ -231,16 +237,14 @@ exports.count = (Model) =>
 
 // exports.getAll = (Model, options = {}) =>
 //   catchAsync(async (req, res, next) => {
-//     // 1. Base Filter (Allows nested routes like GET /courses/:courseId/reviews)
-//     let filter = { ...req.filter }; 
+//     // Merge req.filter (for nested routes) with Ownership Filter
+//     let filter = { ...req.filter, ...getOwnershipFilter(Model, req) }; 
 
-//     // 2. Automated status & soft-delete management
 //     if (Model.schema.path("isDeleted")) filter.isDeleted = { $ne: true };
 //     if (Model.schema.path("isActive") && !options.includeInactive) {
 //       filter.isActive = { $ne: false };
 //     }
 
-//     // 3. Build Features
 //     const features = new ApiFeatures(Model.find(filter), req.query)
 //       .filter()
 //       .search(options.searchFields || ["name", "title", "description"])
@@ -264,35 +268,43 @@ exports.count = (Model) =>
 
 // exports.getOne = (Model, options = {}) =>
 //   catchAsync(async (req, res, next) => {
-//     let query = Model.findOne({ _id: req.params.id });
+//     // FIXED: Now respects req.filter for secure single fetches!
+//     let filter = { _id: req.params.id, ...req.filter };
 
-//     // Ensure soft-deleted items aren't fetched by ID
-//     if (Model.schema.path("isDeleted")) query = query.where({ isDeleted: { $ne: true } });
+//     // Apply ownership filter on GET if explicitly requested via options
+//     if (options.requireOwnership) {
+//         filter = { ...filter, ...getOwnershipFilter(Model, req) };
+//     }
 
+//     if (Model.schema.path("isDeleted")) filter.isDeleted = { $ne: true };
+
+//     let query = Model.findOne(filter);
 //     if (options.populate) query = query.populate(options.populate);
+    
 //     const doc = await query.lean();
 
-//     if (!doc) return next(new AppError("Document not found", 404));
+//     if (!doc) return next(new AppError("Document not found or access denied", 404));
 
 //     res.status(200).json({ status: "success", data: { data: doc } });
 //   });
 
 // exports.createOne = (Model) =>
 //   catchAsync(async (req, res, next) => {
-//     // Zero-Trust: Auto-assign ownership based on the currently logged-in user
 //     if (req.user) {
 //       if (Model.schema.path("instructor") && !req.body.instructor) req.body.instructor = req.user.id;
 //       if (Model.schema.path("student") && !req.body.student) req.body.student = req.user.id;
 //       if (Model.schema.path("user") && !req.body.user) req.body.user = req.user.id;
 //     }
 
-//     const doc = await Model.create(req.body);
+//     // Merging req.body with req.filter allows nested creates (e.g. creating a lesson inside a specific course route)
+//     const finalData = { ...req.body, ...req.filter };
+//     const doc = await Model.create(finalData);
+    
 //     res.status(201).json({ status: "success", data: { data: doc } });
 //   });
 
 // exports.updateOne = (Model) =>
 //   catchAsync(async (req, res, next) => {
-//     // Determine if the user is authorized to update this specific document
 //     const filter = { _id: req.params.id, ...getOwnershipFilter(Model, req) };
 
 //     const doc = await Model.findOneAndUpdate(
@@ -307,7 +319,6 @@ exports.count = (Model) =>
 
 // exports.deleteOne = (Model) =>
 //   catchAsync(async (req, res, next) => {
-//     // Only the owner or an admin can delete
 //     const filter = { _id: req.params.id, ...getOwnershipFilter(Model, req) };
 //     const hasSoftDelete = !!Model.schema.path("isDeleted");
 //     let doc;
@@ -331,8 +342,7 @@ exports.count = (Model) =>
 //     if (!Array.isArray(req.body)) return next(new AppError("Request body must be an array", 400));
 
 //     const docs = req.body.map((item) => {
-//       const newItem = { ...item };
-//       // Auto-assign ownership if applicable
+//       const newItem = { ...item, ...req.filter }; // Respect nested routes
 //       if (req.user) {
 //         if (Model.schema.path("instructor") && !newItem.instructor) newItem.instructor = req.user.id;
 //         if (Model.schema.path("student") && !newItem.student) newItem.student = req.user.id;
@@ -350,7 +360,6 @@ exports.count = (Model) =>
 //     const { ids, updates } = req.body;
 //     if (!Array.isArray(ids) || !updates) return next(new AppError("IDs and Updates required", 400));
 
-//     // Lock bulk updates to user's own documents unless Admin
 //     const filter = { _id: { $in: ids }, ...getOwnershipFilter(Model, req) };
 
 //     const result = await Model.updateMany(
@@ -367,7 +376,6 @@ exports.count = (Model) =>
 //     const { ids, hardDelete = false } = req.body;
 //     if (!Array.isArray(ids)) return next(new AppError("IDs array required", 400));
 
-//     // Lock bulk deletes to user's own documents unless Admin
 //     const filter = { _id: { $in: ids }, ...getOwnershipFilter(Model, req) };
 //     const hasSoftDelete = !!Model.schema.path("isDeleted");
 //     let result;
@@ -403,11 +411,11 @@ exports.count = (Model) =>
 
 // exports.count = (Model) =>
 //   catchAsync(async (req, res, next) => {
-//     let filter = { ...req.filter };
+//     let filter = { ...req.filter, ...getOwnershipFilter(Model, req) };
 //     if (Model.schema.path("isDeleted")) filter.isDeleted = { $ne: true };
 
-//     const features = new ApiFeatures(Model.find(filter), req.query).filter();
-//     const count = await Model.countDocuments(features.query.getFilter());
+//     const count = await Model.countDocuments(filter); // Simplified count logic for performance
 
 //     res.status(200).json({ status: "success", data: { count } });
 //   });
+  
