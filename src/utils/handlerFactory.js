@@ -21,22 +21,15 @@ const getOwnershipFilter = (Model, req) => {
   return filter;
 };
 
-
 exports.getAll = (Model, options = {}) =>
   catchAsync(async (req, res, next) => {
-    
-    // 1. Start with req.filter (for nested routes)
-    let filter = { ...req.filter }; 
-
-    // 2. ONLY apply ownership lock if explicitly requested
-    if (options.requireOwnership) {
-      filter = { ...filter, ...getOwnershipFilter(Model, req) };
-    }
+    // Merge req.filter (for nested routes) with Ownership Filter
+    let filter = { ...req.filter, ...getOwnershipFilter(Model, req) }; 
 
     if (Model.schema.path("isDeleted")) filter.isDeleted = { $ne: true };
-    if (Model.schema.path("isActive") && !options.includeInactive) {
-      filter.isActive = { $ne: false };
-    }
+    // if (Model.schema.path("isActive") && !options.includeInactive) {
+    //   filter.isActive = { $ne: false };
+    // }
 
     const features = new ApiFeatures(Model.find(filter), req.query)
       .filter()
@@ -58,37 +51,6 @@ exports.getAll = (Model, options = {}) =>
       data: { data: result.data },
     });
   });
-  
-// exports.getAll = (Model, options = {}) =>
-//   catchAsync(async (req, res, next) => {
-//     // Merge req.filter (for nested routes) with Ownership Filter
-//     let filter = { ...req.filter, ...getOwnershipFilter(Model, req) }; 
-
-//     if (Model.schema.path("isDeleted")) filter.isDeleted = { $ne: true };
-//     if (Model.schema.path("isActive") && !options.includeInactive) {
-//       filter.isActive = { $ne: false };
-//     }
-
-//     const features = new ApiFeatures(Model.find(filter), req.query)
-//       .filter()
-//       .search(options.searchFields || ["name", "title", "description"])
-//       .sort()
-//       .limitFields()
-//       .paginate();
-
-//     if (options.populate) {
-//       features.query = features.query.populate(options.populate);
-//     }
-
-//     const result = await features.execute();
-
-//     res.status(200).json({
-//       status: "success",
-//       results: result.results,
-//       pagination: result.pagination,
-//       data: { data: result.data },
-//     });
-//   });
 
 exports.getOne = (Model, options = {}) =>
   catchAsync(async (req, res, next) => {
