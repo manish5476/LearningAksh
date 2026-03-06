@@ -110,7 +110,7 @@ exports.deleteLesson = catchAsync(async (req, res, next) => {
   // Sync totals
   await recalculateTotals(section.course._id, section._id);
 
-  res.status(204).json({ status: 'success', data: null });
+  res.status(200).json({ status: 'success', data: null });
 });
 
 // ==========================================

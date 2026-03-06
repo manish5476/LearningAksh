@@ -235,7 +235,7 @@ exports.getCourse = catchAsync(async (req, res, next) => {
     }
   });
 });
-
+  
 // ==========================================
 // THE ULTIMATE SYLLABUS ENGINE
 // ==========================================

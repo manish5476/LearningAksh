@@ -85,7 +85,7 @@ exports.deleteSection = catchAsync(async (req, res, next) => {
   // 5. Soft delete all nested lessons
   await Lesson.updateMany({ section: req.params.id }, { isDeleted: true, isPublished: false });
 
-  res.status(204).json({ status: 'success', data: null });
+  res.status(200).json({ status: 'success', data: null });
 });
 
 // exports.deleteSection = catchAsync(async (req, res, next) => {
