@@ -319,12 +319,14 @@ exports.getCourseWithContent = catchAsync(async (req, res, next) => {
 });
 
 exports.updateCourse = catchAsync(async (req, res, next) => {
-  if (req.body.title) {
-    const baseSlug = slugify(req.body.title, { lower: true, strict: true });
-    const randomString = Math.random().toString(36).substring(2, 6);
-    req.body.slug = `${baseSlug}-${randomString}`;
-  }
   
+  // 1. Remove the slug regeneration block completely.
+  // We only want to generate slugs in createCourse, NOT updateCourse.
+  if (req.body.slug) {
+     // Optional: Prevent frontend from manually updating the slug by accident
+     delete req.body.slug; 
+  }
+
   const updatedDoc = await Course.findOneAndUpdate(
     { _id: req.params.id, instructor: req.user.id, isDeleted: false }, 
     req.body, 
@@ -334,6 +336,22 @@ exports.updateCourse = catchAsync(async (req, res, next) => {
   if (!updatedDoc) return next(new AppError('Course not found or unauthorized', 404));
   res.status(200).json({ status: 'success', data: { data: updatedDoc } });
 });
+// exports.updateCourse = catchAsync(async (req, res, next) => {
+//   if (req.body.title) {
+//     const baseSlug = slugify(req.body.title, { lower: true, strict: true });
+//     const randomString = Math.random().toString(36).substring(2, 6);
+//     req.body.slug = `${baseSlug}-${randomString}`;
+//   }
+  
+//   const updatedDoc = await Course.findOneAndUpdate(
+//     { _id: req.params.id, instructor: req.user.id, isDeleted: false }, 
+//     req.body, 
+//     { new: true, runValidators: true }
+//   );
+
+//   if (!updatedDoc) return next(new AppError('Course not found or unauthorized', 404));
+//   res.status(200).json({ status: 'success', data: { data: updatedDoc } });
+// });
 
 exports.deleteCourse = factory.deleteOne(Course);
 
