@@ -64,24 +64,49 @@ exports.updateSection = catchAsync(async (req, res, next) => {
 });
 
 exports.deleteSection = catchAsync(async (req, res, next) => {
-  // 1. Find section
-  const sectionToDelete = await Section.findOne({ _id: req.params.id, isDeleted: false });
-  if (!sectionToDelete) return next(new AppError('Section not found', 404));
+  // 1. Find section strictly by its own ID (ignore req.filter.course for a moment)
+  const sectionToDelete = await Section.findById(req.params.id);
+  
+  if (!sectionToDelete || sectionToDelete.isDeleted) {
+    return next(new AppError('Section not found', 404));
+  }
 
-  // 2. Verify Ownership
+  // 2. Verify Ownership using the course attached to the document, NOT the URL param
   await verifyCourseOwnership(sectionToDelete.course, req.user.id, req.user.role, next);
 
   // 3. Soft Delete the section
-  await Section.findByIdAndUpdate(req.params.id, { isDeleted: true, isActive: false });
+  sectionToDelete.isDeleted = true;
+  sectionToDelete.isActive = false;
+  await sectionToDelete.save(); // Using .save() triggers any Mongoose hooks you might have!
 
   // 4. Safely decrement the Course's total section counter
   await Course.findByIdAndUpdate(sectionToDelete.course, { $inc: { totalSections: -1 } });
 
-  // 5. (Optional but recommended) Soft delete all nested lessons to hide them from the syllabus
+  // 5. Soft delete all nested lessons
   await Lesson.updateMany({ section: req.params.id }, { isDeleted: true, isPublished: false });
 
   res.status(204).json({ status: 'success', data: null });
 });
+
+// exports.deleteSection = catchAsync(async (req, res, next) => {
+//   // 1. Find section
+//   const sectionToDelete = await Section.findOne({ _id: req.params.id, isDeleted: false });
+//   if (!sectionToDelete) return next(new AppError('Section not found', 404));
+
+//   // 2. Verify Ownership
+//   await verifyCourseOwnership(sectionToDelete.course, req.user.id, req.user.role, next);
+
+//   // 3. Soft Delete the section
+//   await Section.findByIdAndUpdate(req.params.id, { isDeleted: true, isActive: false });
+
+//   // 4. Safely decrement the Course's total section counter
+//   await Course.findByIdAndUpdate(sectionToDelete.course, { $inc: { totalSections: -1 } });
+
+//   // 5. (Optional but recommended) Soft delete all nested lessons to hide them from the syllabus
+//   await Lesson.updateMany({ section: req.params.id }, { isDeleted: true, isPublished: false });
+
+//   res.status(204).json({ status: 'success', data: null });
+// });
 
 // ==========================================
 // BULK OPERATIONS
