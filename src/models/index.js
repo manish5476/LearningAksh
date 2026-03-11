@@ -1,69 +1,47 @@
-// Central export file unifying all domain models
-
-// Contains: User, InstructorProfile, StudentProfile
-const UserModels = require('./core/userDomain.model');
-
-// Contains: Category, Course, Section, Lesson
-const CourseModels = require('./core/courseDomain.model');
-
-// Contains: Quiz, QuizQuestion, MockTest, MockTestQuestion, MockTestAttempt
-const AssessmentModels = require('./core/assesmentDomain.model');
-
-// Contains: Assignment, AssignmentSubmission, CodingExercise, CodingSubmission
-const ExerciseModels = require('./core/exerciseDomain.model');
-
-// Contains: Review, Discussion, DiscussionReply
-const InteractionModels = require('./core/interactionDomain.model');
-
-// Contains: Payment, Enrollment
-const CommerceModels = require('./core/commerceDomain.model');
-
-// Contains: ProgressTracking, Certificate
-const TrackingModels = require('./core/trackingCertificatsDomain.model');
-
-// Contains: AuditLog, SystemSettings, ActivityLog
-const MiscModels = require('./core/miscDomain.model');
-
-// Contains: Notification, LearningPath, LiveSession, StudentNote, Badge, UserBadge
-const studentExperience = require('./core/studentExperienceDomain.model');
-
-// Contains: Coupon, Announcement, Cohort
-const marketing = require('./core/marketingDomain.model');
-
+// models/index.js
+const User = require('./User.model');
+const InstructorProfile = require('./InstructorProfile.model');
+const Course = require('./Course.model');
+const Category = require('./Category.model');
+const Section = require('./Section.model');
+const Lesson = require('./Lesson.model');
+const Order = require('./Order.model');
+const OrderItem = require('./OrderItem.model');
+const Coupon = require('./Coupon.model');
+const Enrollment = require('./Enrollment.model');
+const LessonProgress = require('./LessonProgress.model');
+const Certificate = require('./Certificate.model');
+const QuizQuestion = require('./QuizQuestion.model');
+const Quiz = require('./Quiz.model');
+const MockTest = require('./MockTest.model');
+const MockTestAttempt = require('./MockTestAttempt.model');
+const Review = require('./Review.model');
+const Announcement = require('./Announcement.model');
+const { Discussion, DiscussionReply } = require('./Discussion.model');
+const AuditLog = require('./AuditLog.model');
+const Assignment = require('./Assignment.model');
+const AssignmentSubmission = require('./AssignmentSubmission.model');
+const CodingExercise = require('./CodingExercise.model');
+const CodingSubmission = require('./CodingSubmission.model');
+const StudentNote = require('./StudentNote.model');
+const Badge = require('./Badge.model');
+const UserBadge = require('./UserBadge.model');
 module.exports = {
-  ...UserModels,
-  ...CourseModels,
-  ...AssessmentModels,
-  ...ExerciseModels,
-  ...InteractionModels,
-  ...CommerceModels,
-  ...TrackingModels,
-  ...MiscModels,
-  ...studentExperience,
-  ...marketing
+    // Core
+    User, InstructorProfile,StudentNote,Badge,UserBadge,
+    // Content
+    Course, Category, Section, Lesson,CodingSubmission,
+    // Commerce
+    Assignment,
+    AssignmentSubmission,
+    CodingExercise,
+    Order, OrderItem, Coupon, Announcement,
+    // Learning
+    Enrollment, LessonProgress, Certificate,
+    // Assessment
+    Quiz, QuizQuestion, MockTest, MockTestAttempt,
+    // Social
+    Review, Discussion, DiscussionReply,
+    // System
+    AuditLog
 };
-
-// // Central export file unifying all domain models
-// const UserModels = require('./core1/userDomain.model');
-// const CourseModels = require('./core1/courseDomain.model');
-// const AssessmentModels = require('./core1/assesmentDomain.model');
-// const ExerciseModels = require('./core1/exerciseDomain.model');
-// const InteractionModels = require('./core1/interactionDomain.model');
-// const CommerceModels = require('./core1/commerceDomain.model');
-// const TrackingModels = require('./core1/trackingCertificatsDomain.model');
-// const MiscModels = require('./core1/miscDomain.model');
-// const studentExperience = require('./core1/studentExperienceDomain.model');
-// const marketing = require('./core1/marketingDomain.model');
-
-// module.exports = {
-//   ...UserModels,
-//   ...CourseModels,
-//   ...AssessmentModels,
-//   ...ExerciseModels,
-//   ...InteractionModels,
-//   ...CommerceModels,
-//   ...TrackingModels,
-//   ...MiscModels,
-//   ...studentExperience,
-//   ...marketing
-// };

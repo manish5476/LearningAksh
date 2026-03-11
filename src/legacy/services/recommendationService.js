@@ -1,4 +1,4 @@
-const { Course, User, Enrollment, ProgressTracking, Category } = require('../models');
+const { Course, User, Enrollment, ProgressTracking, Category } = require('../../models');
 const mongoose = require('mongoose');
 const cacheService = require('./cacheService');
 
@@ -34,7 +34,7 @@ class RecommendationService {
       // Get user's interests from profile
       let userInterests = [];
       if (user.role === 'student') {
-        const { StudentProfile } = require('../models');
+        const { StudentProfile } = require('../../models');
         const profile = await StudentProfile.findOne({ user: userId });
         userInterests = profile?.interests || [];
       }
