@@ -31,8 +31,8 @@ router.use(authController.restrictTo('instructor', 'admin'));
 
 router.get('/instructor/my-courses', courseController.getMyCourses);
 router.get('/instructor/:id/students', courseController.getCourseStudents);
-router.get('/instructor/:id/stats', courseController.getInstructorCourseStats);
-
+// router.get('/instructor/:id/stats', courseController.getInstructorCourseStats);
+router.get('/instructor/courses/:id', courseController.getInstructorCourse);
 // Deep Clone Feature
 router.post('/instructor/:id/clone', courseController.cloneCourse);
 
@@ -53,93 +53,3 @@ router.use(authController.restrictTo('admin'));
 router.patch('/:id/approve', courseController.approveCourse);
 
 module.exports = router;
-
-// const express = require('express');
-// const courseController = require('../controllers/courseController');
-// const authController = require('../controllers/authController');
-// const sectionRouter = require('./sectionRoutes'); // Assuming you have this
-
-// const router = express.Router();
-
-// // ==========================================
-// // NESTED ROUTES
-// // ==========================================
-// // Pass requests like /courses/123/sections to the section router
-// router.use('/:courseId/sections', sectionRouter);
-
-// // ==========================================
-// // PUBLIC ROUTES
-// // ==========================================
-// router.get('/', courseController.getAllCourses);
-// router.get('/slug/:slug', courseController.getCourseWithContent); 
-// router.get('/:id', courseController.getCourse);
-
-// // ==========================================
-// // PROTECTED ROUTES (Must be logged in)
-// // ==========================================
-// router.use(authController.protect);
-
-// // ==========================================
-// // INSTRUCTOR ROUTES
-// // ==========================================
-// // CRITICAL FIX: Only instructors and admins can do these actions
-// router.use(authController.restrictTo('instructor', 'admin'));
-
-// router.get('/instructor/my-courses', courseController.getMyCourses);
-// router.get('/instructor/:id/students', courseController.getCourseStudents);
-// router.get('/instructor/:id/stats', courseController.getInstructorCourseStats);
-
-// router.post('/', courseController.createCourse);
-
-// router
-//   .route('/:id')
-//   .patch(courseController.updateCourse)
-//   .delete(courseController.deleteCourse);
-
-// router.patch('/:id/publish', courseController.publishCourse);
-// router.patch('/:id/unpublish', courseController.unpublishCourse);
-
-// // ==========================================
-// // ADMIN ONLY ROUTES
-// // ==========================================
-// router.use(authController.restrictTo('admin'));
-// router.patch('/:id/approve', courseController.approveCourse);
-
-// module.exports = router;
-
-
-// // const express = require('express');
-// // const courseController = require('../controllers/courseController');
-// // const authController = require('../controllers/authController');
-// // const sectionRouter = require('./sectionRoutes');
-
-// // const router = express.Router();
-
-// // // Nested routes
-// // router.use('/:courseId/sections', sectionRouter);
-
-// // // Public routes
-// // router.get('/search', courseController.getAllCourses);
-// // router.get('/slug/:slug', courseController.getCourseWithContent);
-// // router.get('/', courseController.getAllCourses);
-// // router.get('/:id', courseController.getCourse);
-
-// // // Protect all routes after this middleware
-// // router.use(authController.protect);
-
-// // // Instructor routes
-// // router.get('/instructor/my-courses', courseController.getMyCourses);
-// // router.post('/', courseController.createCourse);
-
-// // router
-// //   .route('/:id')
-// //   .patch(courseController.updateCourse)
-// //   .delete(courseController.deleteCourse);
-
-// // router.patch('/:id/publish', courseController.publishCourse);
-
-// // // Admin only routes
-// // router.use(authController.restrictTo('admin'));
-// // router.patch('/:id/approve', courseController.approveCourse);
-
-// // module.exports = router;

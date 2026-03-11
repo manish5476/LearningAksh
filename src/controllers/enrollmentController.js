@@ -92,31 +92,56 @@ exports.bulkEnroll = catchAsync(async (req, res, next) => {
   res.status(201).json({ status: 'success', data: { enrollments, errors: errors.length > 0 ? errors : undefined } });
 });
 
-exports.getMyEnrollments = catchAsync(async (req, res, next) => {
-  const enrollments = await Enrollment.find({ student: req.user.id, isActive: true })
-    .populate({
-      path: 'course',
-      match: { isDeleted: false },
-      populate: { path: 'instructor', select: 'firstName lastName' }
-    })
-    .populate('payment')
-    .lean(); // Faster querying
-  
-  const validEnrollments = enrollments.filter(e => e.course !== null);
-  
-  // Inject progress efficiently
-  const enrollmentsWithProgress = await Promise.all(
-    validEnrollments.map(async (enrollment) => {
-      const progress = await ProgressTracking.findOne({ student: req.user.id, course: enrollment.course._id }).lean();
-      return {
-        ...enrollment,
-        progress: progress || { courseProgressPercentage: 0, completedLessons: [] }
-      };
-    })
-  );
-  
-  res.status(200).json({ status: 'success', results: enrollmentsWithProgress.length, data: { enrollments: enrollmentsWithProgress } });
-});
+// exports.getMyEnrollments = catchAsync(async (req, res, next) => {
+//   // 1. Fetch active enrollments
+//   const enrollments = await Enrollment.find({ 
+//     student: req.user.id, 
+//     isActive: true 
+//   })
+//   .populate({
+//     path: 'course',
+//     match: { isDeleted: false },
+//     select: 'title thumbnail slug totalLessons totalSections' // Get totals for the progress bar calculation
+//   })
+//   .lean();
+
+//   // 2. Filter out any null courses (from soft deletes)
+//   const validEnrollments = enrollments.filter(e => e.course !== null);
+
+//   // 3. Inject Detailed Progress
+//   const enrollmentsWithFullProgress = await Promise.all(
+//     validEnrollments.map(async (enrollment) => {
+//       const progress = await ProgressTracking.findOne({ 
+//         student: req.user.id, 
+//         course: enrollment.course._id 
+//       }).lean();
+
+//       return {
+//         ...enrollment,
+//         // Detailed Progress Object for the Frontend
+//         progress: progress ? {
+//           percentage: progress.courseProgressPercentage || 0,
+//           completedLessonsCount: progress.completedLessons?.length || 0,
+//           completedQuizzesCount: progress.completedQuizzes?.length || 0,
+//           isCompleted: progress.isCompleted || false,
+//           lastActivity: progress.lastActivity,
+//           // Calculate remaining items
+//           remainingLessons: (enrollment.course.totalLessons || 0) - (progress.completedLessons?.length || 0)
+//         } : { 
+//           percentage: 0, 
+//           completedLessonsCount: 0, 
+//           isCompleted: false 
+//         }
+//       };
+//     })
+//   );
+
+//   res.status(200).json({
+//     status: 'success',
+//     results: enrollmentsWithFullProgress.length,
+//     data: { enrollments: enrollmentsWithFullProgress }
+//   });
+// });
 
 exports.checkEnrollment = catchAsync(async (req, res, next) => {
   const enrollment = await Enrollment.findOne({ student: req.user.id, course: req.params.courseId, isActive: true })
@@ -550,7 +575,68 @@ exports.updateEnrollment = factory.updateOne(Enrollment);
 exports.deleteEnrollment = factory.deleteOne(Enrollment);
 
 
+exports.enrollInCourse = catchAsync(async (req, res, next) => {
+  const courseId = req.params.courseId || req.params.id;
 
+  // 1. Find the course
+  const course = await Course.findById(courseId);
+  if (!course) {
+    return next(new AppError('No course found with that ID', 404));
+  }
+
+  // 2. Check if the user is already enrolled
+  const existingEnrollment = await Enrollment.findOne({
+    student: req.user.id,
+    course: courseId,
+    isActive: true
+  });
+
+  if (existingEnrollment) {
+    return res.status(200).json({
+      status: 'success',
+      message: 'You are already enrolled in this course.',
+      data: { enrollment: existingEnrollment }
+    });
+  }
+
+  // 3. Handle Paid vs. Free Courses
+  // If the course is paid, this is where you'd normally integrate Stripe/Razorpay.
+  // For now, if it's paid, we block it unless a payment ID is provided (or you can bypass for testing).
+  if (!course.isFree) {
+    // TODO: In the future, verify payment status here before enrolling
+    // return next(new AppError('This is a premium course. Payment is required.', 402));
+    
+    // TEMPORARY BYPASS FOR TESTING PAID COURSES:
+    console.warn('Enrolling in a paid course without payment for testing purposes.');
+  }
+
+  // 4. Create the enrollment
+  const enrollment = await Enrollment.create({
+    course: courseId,
+    student: req.user.id,
+    isActive: true
+  });
+
+  // Note: Your Mongoose hook on enrollmentSchema will automatically fire here 
+  // and update the totalEnrollments count on the Course model!
+
+  res.status(201).json({
+    status: 'success',
+    message: 'Successfully enrolled in the course!',
+    data: { enrollment }
+  });
+});
+
+exports.getMyEnrollments = catchAsync(async (req, res, next) => {
+  const enrollments = await Enrollment.find({ student: req.user.id, isActive: true })
+    .populate('course', 'title slug thumbnail instructor');
+
+  res.status(200).json({
+    status: 'success',
+    results: enrollments.length,
+    data: { enrollments }
+  });
+});
 
 
 

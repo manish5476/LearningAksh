@@ -78,7 +78,6 @@ exports.updateCategory = catchAsync(async (req, res, next) => {
   if (!category) {
     return next(new AppError('No category found with that ID', 404));
   }
-
   res.status(200).json({
     status: 'success',
     data: { category }
@@ -123,7 +122,7 @@ exports.getPopularCategories = catchAsync(async (req, res, next) => {
       $sort: { courseCount: -1 } 
     },
     { 
-      $limit: req.query.limit ? parseInt(req.query.limit) : 6 // Default to top 6
+      $limit: req.query.limit ? parseInt(req.query.limit) : 6
     },
     {
       $lookup: {

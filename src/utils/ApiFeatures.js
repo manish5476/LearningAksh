@@ -76,7 +76,11 @@ class ApiFeatures {
       if (orConditions.length) this.query.pipeline().push({ $match: { $or: orConditions } });
     } else {
       this.query = this.query.find(filterConditions);
-      if (orConditions.length) this.query = this.query.find({ $or: orConditions });
+      
+      // FIXED: Use .and() to prevent overwriting existing $or conditions
+      if (orConditions.length) {
+        this.query = this.query.and([{ $or: orConditions }]);
+      }
     }
 
     return this;
@@ -92,7 +96,8 @@ class ApiFeatures {
     if (this.isAggregate) {
       this.query.pipeline().push({ $match: { $or: searchConditions } });
     } else {
-      this.query = this.query.find({ $or: searchConditions });
+      // FIXED: Use .and() here as well so search doesn't wipe out filter's $or
+      this.query = this.query.and([{ $or: searchConditions }]);
     }
 
     return this;
@@ -147,7 +152,7 @@ class ApiFeatures {
 
     const currentFilter = this.query.getFilter();
     const totalCount = await this.query.model.countDocuments(currentFilter);
-    
+
     const docs = await this.query.lean();
     const totalPages = Math.ceil(totalCount / this.pagination.limit);
 

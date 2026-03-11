@@ -88,7 +88,8 @@ courseSchema.index({ title: 'text', description: 'text' });
 courseSchema.index({ category: 1, level: 1, price: 1 });
 sectionSchema.index({ course: 1, order: 1 });
 lessonSchema.index({ section: 1, order: 1 });
-
+// Add this index to make deleting and fetching lessons lightning fast!
+lessonSchema.index({ section: 1, isDeleted: 1 });
 module.exports = {
   Category: mongoose.model('Category', categorySchema),
   Course: mongoose.model('Course', courseSchema),
