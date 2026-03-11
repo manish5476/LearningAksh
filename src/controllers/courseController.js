@@ -365,8 +365,21 @@ exports.updateCourse = catchAsync(async (req, res, next) => {
 
 });
 
+exports.getAllCourses = factory.getAll(Course, {
+  searchFields: ['title', 'description', 'subtitle', 'tags'],
+  populate: [
+    { path: 'category', select: 'name slug' },
+    { path: 'instructor', select: 'firstName lastName profilePicture' }
+  ]
+});
+exports.getMyCourses = catchAsync(async (req, res, next) => {
+  const courses = await Course.find({ instructor: req.user.id, isDeleted: false })
+    .populate('category', 'name')
+    .sort('-createdAt')
+    .lean();
 
-
+  res.status(200).json({ status: 'success', results: courses.length, data: { courses } });
+});
 exports.deleteCourse = factory.deleteOne(Course);
 
 
@@ -489,63 +502,64 @@ exports.deleteCourse = factory.deleteOne(Course);
 //   res.status(200).json({ status: 'success', results: courses.length, data: { courses } });
 // });
 
-// exports.getCourseStudents = catchAsync(async (req, res, next) => {
-//   const course = await Course.findOne({ _id: req.params.id, instructor: req.user.id });
-//   if (!course) return next(new AppError('Course not found or unauthorized', 404));
+exports.getCourseStudents = catchAsync(async (req, res, next) => {
+  const course = await Course.findOne({ _id: req.params.id, instructor: req.user.id });
+  if (!course) return next(new AppError('Course not found or unauthorized', 404));
 
-//   const enrollments = await Enrollment.find({ course: course._id, isActive: true })
-//     .populate('student', 'firstName lastName email profilePicture')
-//     .sort('-enrolledAt');
+  const enrollments = await Enrollment.find({ course: course._id, isActive: true })
+    .populate('student', 'firstName lastName email profilePicture')
+    .sort('-enrolledAt');
 
-//   res.status(200).json({ status: 'success', results: enrollments.length, data: { students: enrollments.map(e => e.student) } });
-// });
+  res.status(200).json({ status: 'success', results: enrollments.length, data: { students: enrollments.map(e => e.student) } });
+});
 
 
-// exports.getInstructorCourse = catchAsync(async (req, res, next) => {
-//   // Find course by ID and ensure the logged-in user is the instructor
-//   const course = await Course.findOne({ 
-//     _id: req.params.id, 
-//     instructor: req.user.id,
-//     isDeleted: false 
-//   });
+exports.getInstructorCourse = catchAsync(async (req, res, next) => {
+  // Find course by ID and ensure the logged-in user is the instructor
+  const course = await Course.findOne({ 
+    _id: req.params.id, 
+    instructor: req.user.id,
+    isDeleted: false 
+  });
 
-//   if (!course) {
-//     return next(new AppError('Course not found or unauthorized', 404));
-//   }
+  if (!course) {
+    return next(new AppError('Course not found or unauthorized', 404));
+  }
 
-//   res.status(200).json({
-//     status: 'success',
-//     data: { data: course }
-//   });
-// });
+  res.status(200).json({
+    status: 'success',
+    data: { data: course }
+  });
+});
+
 // // ==========================================
 // // STATE MANAGEMENT & FACTORY CRUD
 // // ==========================================
-// exports.publishCourse = catchAsync(async (req, res, next) => {
-//   const course = await Course.findOneAndUpdate(
-//     { _id: req.params.id, instructor: req.user.id, isDeleted: false },
-//     { isPublished: true, publishedAt: Date.now() },
-//     { new: true, runValidators: true }
-//   );
-//   if (!course) return next(new AppError('Course not found or unauthorized', 404));
-//   res.status(200).json({ status: 'success', data: { course } });
-// });
+exports.publishCourse = catchAsync(async (req, res, next) => {
+  const course = await Course.findOneAndUpdate(
+    { _id: req.params.id, instructor: req.user.id, isDeleted: false },
+    { isPublished: true, publishedAt: Date.now() },
+    { new: true, runValidators: true }
+  );
+  if (!course) return next(new AppError('Course not found or unauthorized', 404));
+  res.status(200).json({ status: 'success', data: { course } });
+});
 
-// exports.unpublishCourse = catchAsync(async (req, res, next) => {
-//   const course = await Course.findOneAndUpdate(
-//     { _id: req.params.id, instructor: req.user.id, isDeleted: false },
-//     { isPublished: false },
-//     { new: true, runValidators: true }
-//   );
-//   if (!course) return next(new AppError('Course not found or unauthorized', 404));
-//   res.status(200).json({ status: 'success', data: { course } });
-// });
+exports.unpublishCourse = catchAsync(async (req, res, next) => {
+  const course = await Course.findOneAndUpdate(
+    { _id: req.params.id, instructor: req.user.id, isDeleted: false },
+    { isPublished: false },
+    { new: true, runValidators: true }
+  );
+  if (!course) return next(new AppError('Course not found or unauthorized', 404));
+  res.status(200).json({ status: 'success', data: { course } });
+});
 
-// exports.approveCourse = catchAsync(async (req, res, next) => {
-//   const course = await Course.findByIdAndUpdate(req.params.id, { isApproved: true, approvedBy: req.user.id, approvedAt: Date.now() }, { new: true });
-//   if (!course) return next(new AppError('No course found with that ID', 404));
-//   res.status(200).json({ status: 'success', data: { course } });
-// });
+exports.approveCourse = catchAsync(async (req, res, next) => {
+  const course = await Course.findByIdAndUpdate(req.params.id, { isApproved: true, approvedBy: req.user.id, approvedAt: Date.now() }, { new: true });
+  if (!course) return next(new AppError('No course found with that ID', 404));
+  res.status(200).json({ status: 'success', data: { course } });
+});
 
 // exports.getAllCourses = factory.getAll(Course, {
 //   searchFields: ['title', 'description', 'subtitle', 'tags'],
