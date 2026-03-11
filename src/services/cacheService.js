@@ -1,145 +1,285 @@
+
+
+'use strict';
+
 const redis = require('redis');
 
 class CacheService {
   constructor() {
     this.isEnabled = process.env.REDIS_ENABLED !== 'false';
     this.client = null;
-
     if (!this.isEnabled) {
-      console.log('🟡 CacheService: Redis is disabled. Operations will be skipped.');
+      console.log('🟡 Redis disabled. CacheService running in fallback mode.');
       return;
     }
 
     this.client = redis.createClient({
-      url: process.env.REDIS_URL || 'redis://localhost:6379',
-      // Ensure it doesn't keep retrying forever in dev if it's accidentally enabled
+      url: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
+
       socket: {
-        reconnectStrategy: (retries) => (retries > 2 ? new Error('Redis connection failed') : 1000)
+        reconnectStrategy: (retries) => {
+          if (retries > 3) {
+            console.log('🔴 Redis reconnect attempts exceeded.');
+            return new Error('Redis reconnect failed');
+          }
+          return 1000;
+        }
       }
     });
 
-    this.client.on('error', (err) => console.log('🟡 Redis Client (Service) Error: Check if Redis is running.'));
-    this.client.on('connect', () => console.log('✅ Redis connected (Service)'));
+    this.client.on('connect', () => {
+      console.log('✅ Redis connected');
+    });
+
+    this.client.on('error', () => {
+      console.log('🟡 Redis error. Cache temporarily unavailable.');
+    });
 
     this.client.connect().catch(() => {
-      console.log('🟡 Redis connect failed. Continuing with cache disabled.');
+      console.log('🟡 Redis connection failed. Cache disabled.');
       this.isEnabled = false;
     });
+
   }
 
-  async get(key) {
-    if (!this.isEnabled || !this.client?.isOpen) return null;
+  /* =========================================================
+     SAFE JSON PARSER
+  ========================================================= */
+
+  parse(data) {
     try {
-      const data = await this.client.get(key);
-      return data ? JSON.parse(data) : null;
-    } catch (error) {
+      return JSON.parse(data);
+    } catch {
       return null;
     }
   }
 
-  async set(key, data, ttl = 300) {
-    if (!this.isEnabled || !this.client?.isOpen) return true;
+  stringify(data) {
     try {
-      await this.client.setEx(key, ttl, JSON.stringify(data));
+      return JSON.stringify(data);
+    } catch {
+      return null;
+    }
+  }
+
+  /* =========================================================
+     BASIC GET
+  ========================================================= */
+
+  async get(key) {
+
+    if (!this.isEnabled || !this.client?.isOpen) return null;
+
+    try {
+
+      const data = await this.client.get(key);
+
+      return data ? this.parse(data) : null;
+
+    } catch {
+      return null;
+    }
+  }
+
+  /* =========================================================
+     BASIC SET
+  ========================================================= */
+
+  async set(key, data, ttl = 300) {
+
+    if (!this.isEnabled || !this.client?.isOpen) return true;
+
+    try {
+
+      const value = this.stringify(data);
+
+      if (!value) return false;
+
+      await this.client.setEx(key, ttl, value);
+
       return true;
-    } catch (error) {
+
+    } catch {
       return false;
     }
   }
+
+  /* =========================================================
+     DELETE KEY
+  ========================================================= */
 
   async del(key) {
+
     if (!this.isEnabled || !this.client?.isOpen) return true;
+
     try {
+
       await this.client.del(key);
+
       return true;
-    } catch (error) {
+
+    } catch {
+
       return false;
     }
   }
 
+  /* =========================================================
+     DELETE BY PATTERN (ENTERPRISE)
+  ========================================================= */
+
+  async delByPattern(pattern) {
+
+    if (!this.isEnabled || !this.client?.isOpen) return true;
+
+    try {
+
+      const keys = await this.client.keys(pattern);
+
+      if (keys.length === 0) return true;
+
+      const pipeline = this.client.multi();
+
+      keys.forEach(key => pipeline.del(key));
+
+      await pipeline.exec();
+
+      return true;
+
+    } catch {
+
+      return false;
+    }
+  }
+
+  /* =========================================================
+     CACHE WRAPPER
+  ========================================================= */
+
   async remember(key, ttl, callback) {
+
     const cached = await this.get(key);
+
     if (cached) return cached;
 
     const fresh = await callback();
+
     await this.set(key, fresh, ttl);
+
     return fresh;
   }
 
-  async flush() {
+  /* =========================================================
+     MULTI SET
+  ========================================================= */
+
+  async mset(entries, ttl = 300) {
+
     if (!this.isEnabled || !this.client?.isOpen) return true;
+
     try {
-      await this.client.flushAll();
+
+      const pipeline = this.client.multi();
+
+      for (const [key, value] of Object.entries(entries)) {
+
+        pipeline.setEx(key, ttl, this.stringify(value));
+
+      }
+
+      await pipeline.exec();
+
       return true;
-    } catch (error) {
+
+    } catch {
+
       return false;
     }
   }
+
+  /* =========================================================
+     CLEAR ALL CACHE
+  ========================================================= */
+
+  async flush() {
+
+    if (!this.isEnabled || !this.client?.isOpen) return true;
+
+    try {
+
+      await this.client.flushAll();
+
+      return true;
+
+    } catch {
+
+      return false;
+    }
+  }
+
 }
 
 module.exports = new CacheService();
 
+
+
+
 // const redis = require('redis');
-// const { promisify } = require('util');
 
 // class CacheService {
 //   constructor() {
+//     this.isEnabled = process.env.REDIS_ENABLED !== 'false';
+//     this.client = null;
+
+//     if (!this.isEnabled) {
+//       console.log('🟡 CacheService: Redis is disabled. Operations will be skipped.');
+//       return;
+//     }
+
 //     this.client = redis.createClient({
-//       url: process.env.REDIS_URL || 'redis://localhost:6379'
+//       url: process.env.REDIS_URL || 'redis://localhost:6379',
+//       // Ensure it doesn't keep retrying forever in dev if it's accidentally enabled
+//       socket: {
+//         reconnectStrategy: (retries) => (retries > 2 ? new Error('Redis connection failed') : 1000)
+//       }
 //     });
 
-//     this.client.on('error', (err) => console.error('Redis Client Error', err));
-//     this.client.on('connect', () => console.log('Redis connected'));
+//     this.client.on('error', (err) => console.log('🟡 Redis Client (Service) Error: Check if Redis is running.'));
+//     this.client.on('connect', () => console.log('✅ Redis connected (Service)'));
 
-//     this.client.connect();
-
-//     // Promisify methods
-//     this.getAsync = promisify(this.client.get).bind(this.client);
-//     this.setAsync = promisify(this.client.setEx).bind(this.client);
-//     this.delAsync = promisify(this.client.del).bind(this.client);
-//     this.keysAsync = promisify(this.client.keys).bind(this.client);
+//     this.client.connect().catch(() => {
+//       console.log('🟡 Redis connect failed. Continuing with cache disabled.');
+//       this.isEnabled = false;
+//     });
 //   }
 
 //   async get(key) {
+//     if (!this.isEnabled || !this.client?.isOpen) return null;
 //     try {
-//       const data = await this.getAsync(key);
+//       const data = await this.client.get(key);
 //       return data ? JSON.parse(data) : null;
 //     } catch (error) {
-//       console.error('Cache get error:', error);
 //       return null;
 //     }
 //   }
 
 //   async set(key, data, ttl = 300) {
+//     if (!this.isEnabled || !this.client?.isOpen) return true;
 //     try {
-//       await this.setAsync(key, ttl, JSON.stringify(data));
+//       await this.client.setEx(key, ttl, JSON.stringify(data));
 //       return true;
 //     } catch (error) {
-//       console.error('Cache set error:', error);
 //       return false;
 //     }
 //   }
 
 //   async del(key) {
+//     if (!this.isEnabled || !this.client?.isOpen) return true;
 //     try {
-//       await this.delAsync(key);
+//       await this.client.del(key);
 //       return true;
 //     } catch (error) {
-//       console.error('Cache delete error:', error);
 //       return false;
-//     }
-//   }
-
-//   async delPattern(pattern) {
-//     try {
-//       const keys = await this.keysAsync(pattern);
-//       if (keys.length > 0) {
-//         await this.delAsync(keys);
-//       }
-//       return keys.length;
-//     } catch (error) {
-//       console.error('Cache pattern delete error:', error);
-//       return 0;
 //     }
 //   }
 
@@ -152,47 +292,13 @@ module.exports = new CacheService();
 //     return fresh;
 //   }
 
-//   async rememberForever(key, callback) {
-//     return this.remember(key, 86400 * 365, callback); // 1 year
-//   }
-
 //   async flush() {
+//     if (!this.isEnabled || !this.client?.isOpen) return true;
 //     try {
 //       await this.client.flushAll();
 //       return true;
 //     } catch (error) {
-//       console.error('Cache flush error:', error);
 //       return false;
-//     }
-//   }
-
-//   generateKey(parts) {
-//     return `cache:${parts.filter(Boolean).join(':')}`;
-//   }
-
-//   // Tag-based caching
-//   async tagSet(tags, key, data, ttl = 300) {
-//     await this.set(key, data, ttl);
-    
-//     // Store key in tag sets
-//     for (const tag of tags) {
-//       const tagKey = `tag:${tag}`;
-//       const tagSet = await this.get(tagKey) || [];
-//       if (!tagSet.includes(key)) {
-//         tagSet.push(key);
-//         await this.set(tagKey, tagSet, ttl * 2);
-//       }
-//     }
-//   }
-
-//   async tagFlush(tags) {
-//     for (const tag of tags) {
-//       const tagKey = `tag:${tag}`;
-//       const keys = await this.get(tagKey) || [];
-//       if (keys.length > 0) {
-//         await this.delAsync(keys);
-//         await this.delAsync(tagKey);
-//       }
 //     }
 //   }
 // }
