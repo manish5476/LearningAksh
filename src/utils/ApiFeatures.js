@@ -1,35 +1,47 @@
 'use strict';
 
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
-/**
- * ApiFeatures
- * Standardized query builder for Mongoose and Aggregation frameworks.
- * Handles: Sorting, Filtering, Searching, Field Limiting, and Intelligent Pagination.
- */
 class ApiFeatures {
-  constructor(query, queryString, isAggregate = false) {
+
+  constructor(query, queryString, options = {}) {
     this.query = query;
     this.queryString = queryString;
-    this.isAggregate = isAggregate;
-    this.pagination = {};
+    this.options = options;
+
+    this.pagination = {
+      page: 1,
+      limit: 50,
+      totalResults: 0,
+      totalPages: 0,
+      hasNextPage: false,
+      hasPrevPage: false,
+      nextCursor: null
+    };
+
+    this._filter = {};
   }
 
+  /* =========================================================
+     VALUE COERCION
+  ========================================================= */
+
   static coerceValue(value) {
+
+    if (value === null || value === undefined) return value;
+
     if (typeof value !== "string") return value;
 
-    const lowerVal = value.toLowerCase().trim();
-    if (lowerVal === "true") return true;
-    if (lowerVal === "false") return false;
-    if (lowerVal === "null") return null;
+    const lower = value.toLowerCase().trim();
 
-    if (!isNaN(value) && value.length < 12 && !value.startsWith('0x')) {
-      return Number(value);
-    }
+    if (lower === "true") return true;
+    if (lower === "false") return false;
+    if (lower === "null") return null;
 
-    if (/^[0-9a-fA-F]{24}$/.test(value)) {
+    if (!isNaN(value) && value.length < 16) return Number(value);
+
+    if (/^[0-9a-fA-F]{24}$/.test(value))
       return new mongoose.Types.ObjectId(value);
-    }
 
     const d = new Date(value);
     if (!isNaN(d.getTime()) && value.includes('-')) return d;
@@ -37,124 +49,229 @@ class ApiFeatures {
     return value;
   }
 
-  filter() {
-    const queryObj = { ...this.queryString };
-    const excludedFields = ["page", "sort", "limit", "fields", "search", "populate", "lastId", "lastDate"];
-    excludedFields.forEach((el) => delete queryObj[el]);
+  /* =========================================================
+     FILTERING
+  ========================================================= */
 
-    let filterConditions = {};
-    const orConditions = [];
+  filter() {
+
+    const queryObj = { ...this.queryString };
+
+    const excluded = [
+      "page",
+      "limit",
+      "sort",
+      "fields",
+      "search",
+      "populate",
+      "cursor",
+      "lastId"
+    ];
+
+    excluded.forEach(el => delete queryObj[el]);
+
+    const mongoFilter = {};
 
     for (const key in queryObj) {
+
       const value = queryObj[key];
 
-      if (key.endsWith("[or]")) {
-        const field = key.replace("[or]", "");
-        const values = String(value).split(",").map(v => ApiFeatures.coerceValue(v.trim()));
-        orConditions.push({ [field]: { $in: values } });
+      if (typeof value === "object") {
+
+        mongoFilter[key] = {};
+
+        for (const op in value) {
+
+          const mongoOperator = `$${op}`;
+
+          mongoFilter[key][mongoOperator] =
+            ApiFeatures.coerceValue(value[op]);
+        }
+
         continue;
       }
 
       if (typeof value === "string" && value.includes("|")) {
-        filterConditions[key] = { $in: value.split("|").map(v => ApiFeatures.coerceValue(v.trim())) };
+
+        mongoFilter[key] = {
+          $in: value.split("|").map(v => ApiFeatures.coerceValue(v))
+        };
+
         continue;
       }
 
-      if (typeof value === "object" && value !== null) {
-        filterConditions[key] = {};
-        for (const op in value) {
-          filterConditions[key][`$${op}`] = ApiFeatures.coerceValue(value[op]);
-        }
-        continue;
-      }
-
-      filterConditions[key] = ApiFeatures.coerceValue(value);
+      mongoFilter[key] = ApiFeatures.coerceValue(value);
     }
 
-    if (this.isAggregate) {
-      if (Object.keys(filterConditions).length) this.query.pipeline().push({ $match: filterConditions });
-      if (orConditions.length) this.query.pipeline().push({ $match: { $or: orConditions } });
-    } else {
-      this.query = this.query.find(filterConditions);
-      
-      // FIXED: Use .and() to prevent overwriting existing $or conditions
-      if (orConditions.length) {
-        this.query = this.query.and([{ $or: orConditions }]);
-      }
-    }
+    this._filter = mongoFilter;
+
+    this.query = this.query.find(mongoFilter);
 
     return this;
   }
+
+  /* =========================================================
+     SEARCH
+  ========================================================= */
 
   search(fields = []) {
+
     const searchTerm = this.queryString.search;
+
     if (!searchTerm || fields.length === 0) return this;
 
-    const regex = { $regex: searchTerm, $options: "i" };
-    const searchConditions = fields.map((field) => ({ [field]: regex }));
+    const regex = new RegExp(searchTerm, "i");
 
-    if (this.isAggregate) {
-      this.query.pipeline().push({ $match: { $or: searchConditions } });
-    } else {
-      // FIXED: Use .and() here as well so search doesn't wipe out filter's $or
-      this.query = this.query.and([{ $or: searchConditions }]);
-    }
+    const conditions = fields.map(field => ({
+      [field]: regex
+    }));
+
+    this.query = this.query.find({
+      $or: conditions
+    });
 
     return this;
   }
+
+  /* =========================================================
+     SORTING
+  ========================================================= */
 
   sort() {
+
     if (this.queryString.sort) {
-      const sortBy = this.queryString.sort.split(",").join(" ");
+
+      const sortBy = this.queryString.sort
+        .split(",")
+        .join(" ");
+
       this.query = this.query.sort(sortBy);
+
     } else {
+
       this.query = this.query.sort("-createdAt -_id");
     }
+
     return this;
   }
+
+  /* =========================================================
+     FIELD LIMITING
+  ========================================================= */
 
   limitFields() {
+
     if (this.queryString.fields) {
-      const fields = this.queryString.fields.split(",").join(" ");
+
+      const fields = this.queryString.fields
+        .split(",")
+        .join(" ");
+
       this.query = this.query.select(fields);
+
     } else {
+
       this.query = this.query.select("-__v");
     }
+
     return this;
   }
 
+  /* =========================================================
+     PAGE PAGINATION
+  ========================================================= */
+
   paginate() {
-    const page = Math.abs(parseInt(this.queryString.page, 10)) || 1;
-    const limit = Math.abs(parseInt(this.queryString.limit, 10)) || 50;
+
+    const page = Math.max(parseInt(this.queryString.page, 10) || 1, 1);
+    const limit = Math.max(parseInt(this.queryString.limit, 10) || 50, 1);
+
     const skip = (page - 1) * limit;
 
-    this.pagination = { page, limit, skip };
+    this.pagination.page = page;
+    this.pagination.limit = limit;
+
     this.query = this.query.skip(skip).limit(limit);
 
     return this;
   }
 
-  populate() {
-    if (this.queryString.populate) {
-      const paths = this.queryString.populate.split(",");
-      paths.forEach(p => {
-        this.query = this.query.populate(p.trim());
+  /* =========================================================
+     CURSOR PAGINATION (ENTERPRISE SCALE)
+  ========================================================= */
+
+  cursorPaginate() {
+
+    const limit = Math.max(parseInt(this.queryString.limit, 10) || 50, 1);
+
+    const cursor = this.queryString.cursor;
+
+    this.pagination.limit = limit;
+
+    if (cursor) {
+
+      this.query = this.query.find({
+        _id: { $gt: new mongoose.Types.ObjectId(cursor) }
       });
     }
+
+    this.query = this.query
+      .sort({ _id: 1 })
+      .limit(limit + 1);
+
+    this.pagination.cursorMode = true;
+
     return this;
   }
 
-  async execute() {
-    if (this.isAggregate) {
-      const data = await this.query.exec();
-      return { data, results: data.length };
+  /* =========================================================
+     POPULATE
+  ========================================================= */
+
+  populate(paths) {
+
+    if (!paths) return this;
+
+    paths.forEach(p => {
+      this.query = this.query.populate(p);
+    });
+
+    return this;
+  }
+
+  /* =========================================================
+     EXECUTE
+  ========================================================= */
+
+  async execute(Model) {
+
+    const docs = await this.query;
+
+    if (this.pagination.cursorMode) {
+
+      const hasNextPage = docs.length > this.pagination.limit;
+
+      if (hasNextPage) docs.pop();
+
+      const nextCursor = hasNextPage
+        ? docs[docs.length - 1]._id
+        : null;
+
+      return {
+        data: docs,
+        results: docs.length,
+        pagination: {
+          limit: this.pagination.limit,
+          nextCursor,
+          hasNextPage
+        }
+      };
     }
 
-    const currentFilter = this.query.getFilter();
-    const totalCount = await this.query.model.countDocuments(currentFilter);
+    const totalResults = await Model.countDocuments(this._filter);
 
-    const docs = await this.query.lean();
-    const totalPages = Math.ceil(totalCount / this.pagination.limit);
+    const totalPages =
+      Math.ceil(totalResults / this.pagination.limit);
 
     return {
       data: docs,
@@ -162,13 +279,190 @@ class ApiFeatures {
       pagination: {
         page: this.pagination.page,
         limit: this.pagination.limit,
-        totalResults: totalCount,
+        totalResults,
         totalPages,
         hasNextPage: this.pagination.page < totalPages,
         hasPrevPage: this.pagination.page > 1
       }
     };
   }
+
 }
 
 module.exports = ApiFeatures;
+
+
+// 'use strict';
+
+// const mongoose = require("mongoose");
+
+// /**
+//  * ApiFeatures
+//  * Standardized query builder for Mongoose and Aggregation frameworks.
+//  * Handles: Sorting, Filtering, Searching, Field Limiting, and Intelligent Pagination.
+//  */
+// class ApiFeatures {
+//   constructor(query, queryString, isAggregate = false) {
+//     this.query = query;
+//     this.queryString = queryString;
+//     this.isAggregate = isAggregate;
+//     this.pagination = {};
+//   }
+
+//   static coerceValue(value) {
+//     if (typeof value !== "string") return value;
+
+//     const lowerVal = value.toLowerCase().trim();
+//     if (lowerVal === "true") return true;
+//     if (lowerVal === "false") return false;
+//     if (lowerVal === "null") return null;
+
+//     if (!isNaN(value) && value.length < 12 && !value.startsWith('0x')) {
+//       return Number(value);
+//     }
+
+//     if (/^[0-9a-fA-F]{24}$/.test(value)) {
+//       return new mongoose.Types.ObjectId(value);
+//     }
+
+//     const d = new Date(value);
+//     if (!isNaN(d.getTime()) && value.includes('-')) return d;
+
+//     return value;
+//   }
+
+//   filter() {
+//     const queryObj = { ...this.queryString };
+//     const excludedFields = ["page", "sort", "limit", "fields", "search", "populate", "lastId", "lastDate"];
+//     excludedFields.forEach((el) => delete queryObj[el]);
+
+//     let filterConditions = {};
+//     const orConditions = [];
+
+//     for (const key in queryObj) {
+//       const value = queryObj[key];
+
+//       if (key.endsWith("[or]")) {
+//         const field = key.replace("[or]", "");
+//         const values = String(value).split(",").map(v => ApiFeatures.coerceValue(v.trim()));
+//         orConditions.push({ [field]: { $in: values } });
+//         continue;
+//       }
+
+//       if (typeof value === "string" && value.includes("|")) {
+//         filterConditions[key] = { $in: value.split("|").map(v => ApiFeatures.coerceValue(v.trim())) };
+//         continue;
+//       }
+
+//       if (typeof value === "object" && value !== null) {
+//         filterConditions[key] = {};
+//         for (const op in value) {
+//           filterConditions[key][`$${op}`] = ApiFeatures.coerceValue(value[op]);
+//         }
+//         continue;
+//       }
+
+//       filterConditions[key] = ApiFeatures.coerceValue(value);
+//     }
+
+//     if (this.isAggregate) {
+//       if (Object.keys(filterConditions).length) this.query.pipeline().push({ $match: filterConditions });
+//       if (orConditions.length) this.query.pipeline().push({ $match: { $or: orConditions } });
+//     } else {
+//       this.query = this.query.find(filterConditions);
+      
+//       // FIXED: Use .and() to prevent overwriting existing $or conditions
+//       if (orConditions.length) {
+//         this.query = this.query.and([{ $or: orConditions }]);
+//       }
+//     }
+
+//     return this;
+//   }
+
+//   search(fields = []) {
+//     const searchTerm = this.queryString.search;
+//     if (!searchTerm || fields.length === 0) return this;
+
+//     const regex = { $regex: searchTerm, $options: "i" };
+//     const searchConditions = fields.map((field) => ({ [field]: regex }));
+
+//     if (this.isAggregate) {
+//       this.query.pipeline().push({ $match: { $or: searchConditions } });
+//     } else {
+//       // FIXED: Use .and() here as well so search doesn't wipe out filter's $or
+//       this.query = this.query.and([{ $or: searchConditions }]);
+//     }
+
+//     return this;
+//   }
+
+//   sort() {
+//     if (this.queryString.sort) {
+//       const sortBy = this.queryString.sort.split(",").join(" ");
+//       this.query = this.query.sort(sortBy);
+//     } else {
+//       this.query = this.query.sort("-createdAt -_id");
+//     }
+//     return this;
+//   }
+
+//   limitFields() {
+//     if (this.queryString.fields) {
+//       const fields = this.queryString.fields.split(",").join(" ");
+//       this.query = this.query.select(fields);
+//     } else {
+//       this.query = this.query.select("-__v");
+//     }
+//     return this;
+//   }
+
+//   paginate() {
+//     const page = Math.abs(parseInt(this.queryString.page, 10)) || 1;
+//     const limit = Math.abs(parseInt(this.queryString.limit, 10)) || 50;
+//     const skip = (page - 1) * limit;
+
+//     this.pagination = { page, limit, skip };
+//     this.query = this.query.skip(skip).limit(limit);
+
+//     return this;
+//   }
+
+//   populate() {
+//     if (this.queryString.populate) {
+//       const paths = this.queryString.populate.split(",");
+//       paths.forEach(p => {
+//         this.query = this.query.populate(p.trim());
+//       });
+//     }
+//     return this;
+//   }
+
+//   async execute() {
+//     if (this.isAggregate) {
+//       const data = await this.query.exec();
+//       return { data, results: data.length };
+//     }
+
+//     const currentFilter = this.query.getFilter();
+//     const totalCount = await this.query.model.countDocuments(currentFilter);
+
+//     const docs = await this.query.lean();
+//     const totalPages = Math.ceil(totalCount / this.pagination.limit);
+
+//     return {
+//       data: docs,
+//       results: docs.length,
+//       pagination: {
+//         page: this.pagination.page,
+//         limit: this.pagination.limit,
+//         totalResults: totalCount,
+//         totalPages,
+//         hasNextPage: this.pagination.page < totalPages,
+//         hasPrevPage: this.pagination.page > 1
+//       }
+//     };
+//   }
+// }
+
+// module.exports = ApiFeatures;

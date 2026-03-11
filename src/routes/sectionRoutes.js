@@ -2,7 +2,6 @@ const express = require('express');
 const sectionController = require('../controllers/sectionController');
 const authController = require('../controllers/authController');
 const lessonRouter = require('./lessonRoutes');
-
 const router = express.Router({ mergeParams: true });
 
 // ==========================================
