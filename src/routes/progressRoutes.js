@@ -5,7 +5,9 @@ const authController = require('../controllers/authController');
 const router = express.Router();
 
 // Protect all routes
-router.use(authController.protect);
+const authMiddleWare= require('../middlewares/authMiddleware');
+router.use(authMiddleWare.protect);
+
 
 router.get('/my-progress', progressController.getMyProgress);
 router.get('/course/:courseId', progressController.getCourseProgress);

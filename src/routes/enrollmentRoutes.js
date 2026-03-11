@@ -6,7 +6,9 @@ const authController = require('../controllers/authController');
 const router = express.Router();
 
 // Protect all routes (User must be logged in)
-router.use(authController.protect);
+const authMiddleWare= require('../middlewares/authMiddleware');
+router.use(authMiddleWare.protect);
+
 
 // ==========================================
 // 1. STATIC ROUTES (Must go first to prevent Express parameter swallowing)
@@ -86,7 +88,9 @@ module.exports = router;
 // const router = express.Router();
 
 // // Protect all routes
-// router.use(authController.protect);
+// const authMiddleWare= require('../middlewares/authMiddleware');
+router.use(authMiddleWare.protect);
+
 
 // // ==========================
 // // STUDENT ROUTES

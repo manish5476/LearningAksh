@@ -24,7 +24,9 @@ router.get('/:id([0-9a-fA-F]{24})', mockTestController.getMockTest);
 // 3. PROTECTED ROUTES
 // Protect all routes after this middleware
 // ==========================================
-router.use(authController.protect);
+const authMiddleWare= require('../middlewares/authMiddleware');
+router.use(authMiddleWare.protect);
+
 
 // Student routes
 router.post('/:mockTestId/start', mockTestController.startAttempt);

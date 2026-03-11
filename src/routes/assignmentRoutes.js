@@ -5,7 +5,9 @@ const uploadMiddleware = require('../middlewares/uploadMiddleware');
 
 const router = express.Router();
 
-router.use(authController.protect);
+const authMiddleWare= require('../middlewares/authMiddleware');
+router.use(authMiddleWare.protect);
+
 
 // Student Routes
 router.post('/:assignmentId/submit', 
@@ -29,7 +31,9 @@ module.exports = router;
 // const router = express.Router();
 
 // // Protect all routes
-// router.use(authController.protect);
+// const authMiddleWare= require('../middlewares/authMiddleware');
+router.use(authMiddleWare.protect);
+
 
 // // Student routes
 // router.get('/my-submissions', assignmentController.getStudentSubmissions);

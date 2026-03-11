@@ -5,7 +5,9 @@ const authController = require('../controllers/authController');
 const router = express.Router({ mergeParams: true });
 
 // Protect all routes
-router.use(authController.protect);
+const authMiddleWare= require('../middlewares/authMiddleware');
+router.use(authMiddleWare.protect);
+
 
 // Note routes
 router.get('/search', studentNoteController.searchNotes);

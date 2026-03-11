@@ -1,11 +1,12 @@
 const express = require('express');
 const analyticsController = require('../controllers/analyticsController');
 const authController = require('../controllers/authController');
+const authMiddleWare= require('../middlewares/authMiddleware');
 
 const router = express.Router();
 
 // Protect all routes
-router.use(authController.protect);
+router.use(authMiddleWare.protect);
 
 // Instructor routes
 router.get('/instructor', analyticsController.getInstructorAnalytics);

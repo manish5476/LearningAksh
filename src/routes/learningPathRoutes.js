@@ -9,7 +9,9 @@ router.get('/', learningPathController.getAllLearningPaths);
 router.get('/:id', learningPathController.getLearningPath);
 
 // Protect all routes after this
-router.use(authController.protect);
+const authMiddleWare= require('../middlewares/authMiddleware');
+router.use(authMiddleWare.protect);
+
 
 // Student routes
 router.get('/recommended/me', learningPathController.getRecommendedPaths);

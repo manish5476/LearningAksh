@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const AppError = require('../utils/appError');
 const UserRepository = require('../repositories/UserRepository');
 const InstructorProfileRepository = require('../repositories/InstructorProfileRepository');
-const { signAccessToken } = require('../utils/jwt');
+const { signAccessToken } = require('../utils/authUtils');
 const EventDispatcher = require('../events/EventDispatcher'); // For sending emails
 
 class AuthService {

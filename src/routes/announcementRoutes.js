@@ -1,11 +1,12 @@
 const express = require('express');
 const announcementController = require('../controllers/announcementController');
-const authController = require('../controllers/authController');
+const authMiddleWare= require('../middlewares/authMiddleware');
+
 
 const router = express.Router({ mergeParams: true });
 
 // Protect all routes
-router.use(authController.protect);
+router.use(authMiddleWare.protect);
 
 // Student routes
 router.get('/course/:courseId', announcementController.getCourseAnnouncements);

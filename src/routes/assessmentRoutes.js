@@ -1,10 +1,10 @@
 const express = require('express');
 const assessmentController = require('../controllers/assessmentController');
-const authController = require('../controllers/authController');
+const authMiddleWare= require('../middlewares/authMiddleware');
 
+router.use(authMiddleWare.protect);
 const router = express.Router();
 
-router.use(authController.protect);
 
 // --- QUIZZES ---
 router.get('/quiz/:id', assessmentController.getQuiz);

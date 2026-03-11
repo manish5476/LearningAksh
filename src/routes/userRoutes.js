@@ -9,7 +9,9 @@ router.post('/forgotPassword', authController.forgotPassword);
 router.patch('/resetPassword/:token', authController.resetPassword);
 
 // Protect all routes after this middleware
-router.use(authController.protect);
+const authMiddleWare= require('../middlewares/authMiddleware');
+router.use(authMiddleWare.protect);
+
 
 // User profile routes
 router.get('/me', userController.getMe, userController.getUser);
@@ -18,7 +20,7 @@ router.delete('/deleteMe', userController.deleteMe);
 router.get('/profile', userController.getUserProfile);
 
 // Restrict all routes after this to admin only
-router.use(authController.restrictTo('admin'));
+// router.use(authController.restrictTo('admin'));
 
 router
   .route('/')

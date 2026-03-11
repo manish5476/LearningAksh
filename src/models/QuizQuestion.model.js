@@ -1,4 +1,5 @@
-const quizQuestionSchema = new mongoose.Schema({
+    const mongoose = require('mongoose');
+ const quizQuestionSchema = new mongoose.Schema({
   quiz: { type: mongoose.Schema.Types.ObjectId, ref: 'Quiz', required: true },
   question: { type: String, required: true },
   type: { type: String, enum: ['multiple-choice', 'true-false', 'short-answer'], required: true },

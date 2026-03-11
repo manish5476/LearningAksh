@@ -27,7 +27,9 @@ router.get('/:id', categoryController.getCategory);
 // ==========================================
 // PROTECTED ADMIN ROUTES
 // ==========================================
-router.use(authController.protect);
+const authMiddleWare= require('../middlewares/authMiddleware');
+router.use(authMiddleWare.protect);
+
 router.use(authController.restrictTo('admin'));
 
 // ----- Static Admin Routes -----
@@ -74,7 +76,9 @@ module.exports = router;
 // // ==========================================
 // // PROTECTED ADMIN ROUTES
 // // ==========================================
-// router.use(authController.protect);
+// const authMiddleWare= require('../middlewares/authMiddleware');
+router.use(authMiddleWare.protect);
+
 // router.use(authController.restrictTo('admin'));
 
 // // 1. Static Admin Routes
@@ -110,7 +114,9 @@ module.exports = router;
 // // router.get('/:id/courses', categoryController.getCategoryWithCourses);
 
 // // // Protect all routes after this middleware
-// // router.use(authController.protect);
+// // const authMiddleWare= require('../middlewares/authMiddleware');
+router.use(authMiddleWare.protect);
+
 // // router.use(authController.restrictTo('admin'));
 
 // // router.post('/', categoryController.createCategory);

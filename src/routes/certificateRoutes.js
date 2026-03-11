@@ -9,7 +9,9 @@ const router = express.Router();
 router.get('/verify/:certificateNumber', certificateController.verifyCertificate);
 
 // Protected Routes
-router.use(authController.protect);
+const authMiddleWare= require('../middlewares/authMiddleware');
+router.use(authMiddleWare.protect);
+
 
 router.get('/my-certificates', certificateController.getMyCertificates);
 router.post('/claim/:courseId', certificateController.claimCertificate);

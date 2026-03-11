@@ -8,7 +8,9 @@ const router = express.Router();
 router.get('/upcoming', liveSessionController.getUpcomingSessions);
 
 // Protect all routes after this
-router.use(authController.protect);
+const authMiddleWare= require('../middlewares/authMiddleware');
+router.use(authMiddleWare.protect);
+
 
 // Student routes
 router.get('/course/:courseId', liveSessionController.getCourseSessions);

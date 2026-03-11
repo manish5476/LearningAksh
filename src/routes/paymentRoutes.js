@@ -7,7 +7,9 @@ const router = express.Router();
 // ==========================================
 // ALL ROUTES REQUIRE AUTHENTICATION
 // ==========================================
-router.use(authController.protect);
+const authMiddleWare= require('../middlewares/authMiddleware');
+router.use(authMiddleWare.protect);
+
 
 // ==========================================
 // STUDENT / USER ROUTES
@@ -42,7 +44,9 @@ module.exports = router;
 
 // const router = express.Router();
 
-// router.use(authController.protect);
+// const authMiddleWare= require('../middlewares/authMiddleware');
+router.use(authMiddleWare.protect);
+
 
 // router.get('/my-payments', paymentController.getMyPayments);
 // router.post('/create-intent', paymentController.createPaymentIntent);
@@ -65,7 +69,9 @@ module.exports = router;
 // // const router = express.Router();
 
 // // // Protect all routes
-// // router.use(authController.protect);
+// // const authMiddleWare= require('../middlewares/authMiddleware');
+router.use(authMiddleWare.protect);
+
 
 // // // Payment routes
 // // router.get('/my-payments', paymentController.getMyPayments);

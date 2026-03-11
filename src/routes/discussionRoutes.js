@@ -5,7 +5,9 @@ const authController = require('../controllers/authController');
 const router = express.Router(); // mergeParams is no longer needed
 
 // Protect all routes
-router.use(authController.protect);
+const authMiddleWare= require('../middlewares/authMiddleware');
+router.use(authMiddleWare.protect);
+
 
 // ----------------------------------------------------
 // Base Discussion routes (/api/v1/discussions)
@@ -50,7 +52,9 @@ module.exports = router;
 // const router = express.Router({ mergeParams: true });
 
 // // Protect all routes
-// router.use(authController.protect);
+// const authMiddleWare= require('../middlewares/authMiddleware');
+router.use(authMiddleWare.protect);
+
 
 // // Discussion routes
 // router.get('/', discussionController.getCourseDiscussions);

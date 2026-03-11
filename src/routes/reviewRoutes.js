@@ -8,7 +8,9 @@ const router = express.Router({ mergeParams: true });
 router.get('/course/:courseId', reviewController.getCourseReviews);
 
 // Protect all routes after this middleware
-router.use(authController.protect);
+const authMiddleWare= require('../middlewares/authMiddleware');
+router.use(authMiddleWare.protect);
+
 
 // Review operations
 router.post('/course/:courseId', 

@@ -20,7 +20,9 @@ router.get('/:id', sectionController.getSection);
 // ==========================================
 // PROTECTED INSTRUCTOR/ADMIN ROUTES
 // ==========================================
-router.use(authController.protect);
+const authMiddleWare= require('../middlewares/authMiddleware');
+router.use(authMiddleWare.protect);
+
 router.use(authController.restrictTo('instructor', 'admin'));
 
 // Enforce courseId mapping for all nested creates/updates

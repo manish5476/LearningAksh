@@ -22,7 +22,9 @@ router.get('/:id', courseController.getCourse);
 // ==========================================
 // PROTECTED ROUTES
 // ==========================================
-router.use(authController.protect);
+const authMiddleWare= require('../middlewares/authMiddleware');
+router.use(authMiddleWare.protect);
+
 
 // ==========================================
 // INSTRUCTOR ROUTES (Course Management)

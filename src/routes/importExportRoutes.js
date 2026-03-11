@@ -8,7 +8,9 @@ const upload = multer({ storage: multer.memoryStorage() });
 const router = express.Router();
 
 // Protect all routes
-router.use(authController.protect);
+const authMiddleWare= require('../middlewares/authMiddleware');
+router.use(authMiddleWare.protect);
+
 router.use(authController.restrictTo('admin'));
 
 // Export routes

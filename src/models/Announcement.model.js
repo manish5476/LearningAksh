@@ -1,4 +1,6 @@
 // Instructor Announcements to Enrolled Students
+    const mongoose = require('mongoose');
+
 const announcementSchema = new mongoose.Schema({
   course: { type: mongoose.Schema.Types.ObjectId, ref: 'Course', required: true },
   instructor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -8,4 +10,4 @@ const announcementSchema = new mongoose.Schema({
   isDeleted: { type: Boolean, default: false }
 }, { timestamps: true });
 
-module.exports = mongoose.model('Announcement', certificateSchema);
+module.exports = mongoose.model('Announcement', announcementSchema);
