@@ -12,7 +12,6 @@ const CacheService = require('../services/cacheService');
 const ApiFeatures = require('../utils/ApiFeatures');
 
 
-
 exports.getCourseAnalytics = catchAsync(async (req, res, next) => {
   const { identifier } = req.params;
 
@@ -29,8 +28,11 @@ exports.getCourseAnalytics = catchAsync(async (req, res, next) => {
   const courseId = course._id;
 
   // 2. Fetch all related data in parallel for performance
+  // UPGRADE: Added .populate() to get the student's actual details
   const [enrollments, payments, reviews, progressData] = await Promise.all([
-      Enrollment.find({ course: courseId }),
+      Enrollment.find({ course: courseId })
+        .populate('student', 'firstName lastName email profilePicture') 
+        .sort('-createdAt'), // Sort so newest students are first
       Payment.find({ course: courseId, status: 'success' }),
       Review.find({ course: courseId, isApproved: true }),
       ProgressTracking.find({ course: courseId })
@@ -59,7 +61,31 @@ exports.getCourseAnalytics = catchAsync(async (req, res, next) => {
       ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1)
       : course.rating; // Fallback to course model rating
 
-  // 8. Construct Response
+  // 8. Format the Student List
+  // UPGRADE: Map through enrollments to create a clean list of students
+  const studentList = enrollments.map(enrollment => {
+      // Safely access student properties in case a user was deleted from the DB
+      const student = enrollment.student || {}; 
+      
+      // Find this specific student's progress if it exists
+      const studentProgress = progressData.find(
+          p => p.student?.toString() === student._id?.toString()
+      );
+
+      return {
+          id: student._id,
+          firstName: student.firstName || 'Unknown',
+          lastName: student.lastName || 'User',
+          email: student.email,
+          profilePicture: student.profilePicture,
+          enrolledAt: enrollment.createdAt,
+          isActive: enrollment.isActive,
+          progressPercentage: studentProgress ? studentProgress.progressPercentage : 0,
+          isCompleted: studentProgress ? studentProgress.isCompleted : false
+      };
+  });
+
+  // 9. Construct Response
   res.status(200).json({
       status: 'success',
       data: {
@@ -72,7 +98,7 @@ exports.getCourseAnalytics = catchAsync(async (req, res, next) => {
           stats: {
               revenue: {
                   total: totalRevenue,
-                  currency: 'USD', // Adjust as needed
+                  currency: 'USD',
                   transactionCount: payments.length
               },
               enrollment: {
@@ -86,10 +112,90 @@ exports.getCourseAnalytics = catchAsync(async (req, res, next) => {
                   completionRate: parseFloat(completionRate),
                   averageProgress: parseFloat(avgProgress)
               }
-          }
+          },
+          // UPGRADE: Add the beautifully formatted student list to the response payload!
+          students: studentList 
       }
   });
 });
+
+// exports.getCourseAnalytics = catchAsync(async (req, res, next) => {
+//   const { identifier } = req.params;
+
+//   const query = identifier.match(/^[0-9a-fA-F]{24}$/) 
+//       ? { _id: identifier } 
+//       : { slug: identifier };
+
+//   const course = await Course.findOne(query);
+
+//   if (!course) {
+//       return next(new AppError('No course found with that ID or slug', 404));
+//   }
+
+//   const courseId = course._id;
+
+//   // 2. Fetch all related data in parallel for performance
+//   const [enrollments, payments, reviews, progressData] = await Promise.all([
+//       Enrollment.find({ course: courseId }),
+//       Payment.find({ course: courseId, status: 'success' }),
+//       Review.find({ course: courseId, isApproved: true }),
+//       ProgressTracking.find({ course: courseId })
+//   ]);
+
+//   // 3. Calculate Financial Metrics
+//   const totalRevenue = payments.reduce((sum, p) => sum + p.amount, 0);
+  
+//   // 4. Calculate Enrollment & Engagement Metrics
+//   const totalEnrollments = enrollments.length;
+//   const activeEnrollments = enrollments.filter(e => e.isActive).length;
+  
+//   // 5. Calculate Completion Rates
+//   const completedCount = progressData.filter(p => p.isCompleted).length;
+//   const completionRate = totalEnrollments > 0 
+//       ? ((completedCount / totalEnrollments) * 100).toFixed(2) 
+//       : 0;
+
+//   // 6. Calculate Average Progress
+//   const avgProgress = progressData.length > 0
+//       ? (progressData.reduce((acc, p) => acc + (p.progressPercentage || 0), 0) / progressData.length).toFixed(2)
+//       : 0;
+
+//   // 7. Aggregate Ratings
+//   const avgRating = reviews.length > 0
+//       ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1)
+//       : course.rating; // Fallback to course model rating
+
+//   // 8. Construct Response
+//   res.status(200).json({
+//       status: 'success',
+//       data: {
+//           courseInfo: {
+//               id: course._id,
+//               title: course.title,
+//               slug: course.slug,
+//               price: course.price
+//           },
+//           stats: {
+//               revenue: {
+//                   total: totalRevenue,
+//                   currency: 'USD', // Adjust as needed
+//                   transactionCount: payments.length
+//               },
+//               enrollment: {
+//                   total: totalEnrollments,
+//                   active: activeEnrollments,
+//                   inactive: totalEnrollments - activeEnrollments
+//               },
+//               engagement: {
+//                   averageRating: parseFloat(avgRating),
+//                   totalReviews: reviews.length,
+//                   completionRate: parseFloat(completionRate),
+//                   averageProgress: parseFloat(avgProgress)
+//               }
+//           }
+//       }
+//   });
+// });
 
 /* =========================================================
 CREATE COURSE
