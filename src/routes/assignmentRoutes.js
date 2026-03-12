@@ -3,7 +3,15 @@ const assignmentController = require('../controllers/assignmentController');
 const authController = require('../controllers/authController');
 const uploadMiddleware = require('../middlewares/uploadMiddleware');
 
+// 1. IMPORT MIDDLEWARE
+const { checkValidId } = require('../middlewares/validateId');
+
 const router = express.Router();
+
+// 2. APPLY PARAMETER SHIELD
+router.param('id', checkValidId);
+router.param('assignmentId', checkValidId);
+
 
 router.use(authController.protect);
 
@@ -22,33 +30,30 @@ router.get('/:assignmentId/submissions', assignmentController.getAssignmentSubmi
 router.patch('/submissions/:id/grade', assignmentController.gradeSubmission);
 
 module.exports = router;
+
+
+
 // const express = require('express');
 // const assignmentController = require('../controllers/assignmentController');
 // const authController = require('../controllers/authController');
+// const uploadMiddleware = require('../middlewares/uploadMiddleware');
 
 // const router = express.Router();
 
-// // Protect all routes
 // router.use(authController.protect);
 
-// // Student routes
-// router.get('/my-submissions', assignmentController.getStudentSubmissions);
-// router.post('/:assignmentId/submit', assignmentController.submitAssignment);
+// // Student Routes
+// router.post('/:assignmentId/submit', 
+//   uploadMiddleware.uploadAssignmentFile, 
+//   assignmentController.submitAssignment
+// );
+// router.get('/:id', assignmentController.getAssignment);
 
-// // Instructor routes
+// // Instructor Routes
+// router.use(authController.restrictTo('instructor', 'admin'));
+
 // router.post('/', assignmentController.createAssignment);
 // router.get('/:assignmentId/submissions', assignmentController.getAssignmentSubmissions);
-// router.post('/submissions/:submissionId/grade', assignmentController.gradeAssignment);
-
-// // CRUD operations with ownership checks
-// router.route('/:id')
-//   .get(assignmentController.getAssignment)
-//   .patch(assignmentController.updateAssignment)
-//   .delete(assignmentController.deleteAssignment);
-
-// // Admin only
-// router.use(authController.restrictTo('admin'));
-// router.route('/')
-//   .get(assignmentController.getAllAssignments);
+// router.patch('/submissions/:id/grade', assignmentController.gradeSubmission);
 
 // module.exports = router;

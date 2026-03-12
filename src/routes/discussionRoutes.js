@@ -1,8 +1,14 @@
 const express = require('express');
 const discussionController = require('../controllers/discussionController');
 const authController = require('../controllers/authController');
+const { checkValidId } = require('../middlewares/validateId'); // Added
 
 const router = express.Router(); // mergeParams is no longer needed
+
+// Apply Parameter Shield
+// EXCEPTION: We DO NOT validate :type because it is a string ('post', 'reply', etc.)
+router.param('id', checkValidId);
+router.param('discussionId', checkValidId);
 
 // Protect all routes
 router.use(authController.protect);
@@ -47,32 +53,42 @@ module.exports = router;
 // const discussionController = require('../controllers/discussionController');
 // const authController = require('../controllers/authController');
 
-// const router = express.Router({ mergeParams: true });
+// const router = express.Router(); // mergeParams is no longer needed
 
 // // Protect all routes
 // router.use(authController.protect);
 
-// // Discussion routes
-// router.get('/', discussionController.getCourseDiscussions);
-// router.post('/', discussionController.createDiscussion);
+// // ----------------------------------------------------
+// // Base Discussion routes (/api/v1/discussions)
+// // ----------------------------------------------------
+// router.route('/')
+//   .get(discussionController.getCourseDiscussions) // Uses req.query.courseId
+//   .post(discussionController.createDiscussion);   // Uses req.body.course
 
+// // ----------------------------------------------------
 // // Reply routes
+// // ----------------------------------------------------
 // router.post('/:discussionId/replies', discussionController.replyToDiscussion);
 
+// // ----------------------------------------------------
 // // Interaction routes
+// // ----------------------------------------------------
 // router.post('/:type/:id/like', discussionController.toggleLike);
 // router.patch('/:id/pin', discussionController.pinDiscussion);
 // router.patch('/:id/resolve', discussionController.markResolved);
 
-// // CRUD operations
+// // ----------------------------------------------------
+// // Standard CRUD operations
+// // ----------------------------------------------------
 // router.route('/:id')
 //   .get(discussionController.getDiscussion)
 //   .patch(discussionController.updateDiscussion)
 //   .delete(discussionController.deleteDiscussion);
 
+// // ----------------------------------------------------
 // // Admin only
+// // ----------------------------------------------------
 // router.use(authController.restrictTo('admin'));
-// router.route('/')
-//   .get(discussionController.getAllDiscussions);
+// router.get('/all', discussionController.getAllDiscussions);
 
 // module.exports = router;
