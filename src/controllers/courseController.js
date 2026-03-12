@@ -17,7 +17,7 @@ const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
 const factory = require('../utils/handlerFactory');
 const CacheService = require('../services/cacheService');
-
+const ApiFeatures = require('../utils/ApiFeatures');
 
 
 /* =========================================================
@@ -365,12 +365,51 @@ exports.updateCourse = catchAsync(async (req, res, next) => {
 
 });
 
-exports.getAllCourses = factory.getAll(Course, {
-  searchFields: ['title', 'description', 'subtitle', 'tags'],
-  populate: [
-    { path: 'category', select: 'name slug' },
-    { path: 'instructor', select: 'firstName lastName profilePicture' }
-  ]
+exports.getAllCourses = catchAsync(async (req, res, next) => {
+
+  // 1. Define base filter for public, approved, and non-deleted courses
+  const baseFilter = {
+    isPublished: true,
+    isApproved: true,
+    isDeleted: { $ne: true }
+  };
+
+  const options = {
+    searchFields: ['title', 'description', 'subtitle', 'tags'],
+    populate: [
+      { path: 'category', select: 'name slug' },
+      { path: 'instructor', select: 'firstName lastName profilePicture' }
+    ]
+  };
+
+  // 2. Initialize ApiFeatures with the correct base model and query
+  const features = new ApiFeatures(Course.find(baseFilter), req.query)
+    .filter()
+    .search(options.searchFields)
+    .sort()
+    .limitFields();
+
+  // 3. Apply pagination (either standard or cursor-based)
+  if (req.query.cursor) {
+    features.cursorPaginate();
+  } else {
+    features.paginate();
+  }
+  
+  // 4. Add population
+  if (options.populate) {
+    features.populate(options.populate);
+  }
+
+  // 5. Execute query and send response
+  const result = await features.execute(Course);
+
+  res.status(200).json({
+    status: 'success',
+    results: result.results,
+    pagination: result.pagination,
+    data: result.data
+  });
 });
 exports.getMyCourses = catchAsync(async (req, res, next) => {
   const courses = await Course.find({ instructor: req.user.id, isDeleted: false })
@@ -440,278 +479,3 @@ exports.approveCourse = catchAsync(async (req, res, next) => {
   if (!course) return next(new AppError('No course found with that ID', 404));
   res.status(200).json({ status: 'success', data: { course } });
 });
-
-// const { Course, Category, Section, Lesson, Enrollment, ProgressTracking, Review } = require('../models');
-// const AppError = require('../utils/appError');
-// const catchAsync = require('../utils/catchAsync');
-// const factory = require('../utils/handlerFactory');
-// const slugify = require('slugify');
-// const jwt = require('jsonwebtoken');
-// const { promisify } = require('util');
-
-// // ==========================================
-// // CORE COURSE CREATION
-// // ==========================================
-// exports.createCourse = catchAsync(async (req, res, next) => {
-//   req.body.instructor = req.user.id;
-  
-//   if (req.body.title) {
-//     const baseSlug = slugify(req.body.title, { lower: true, strict: true });
-//     const randomString = Math.random().toString(36).substring(2, 6);
-//     req.body.slug = `${baseSlug}-${randomString}`;
-//   }
-
-//   const course = await Course.create(req.body);
-
-//   res.status(201).json({ status: 'success', data: { course } });
-// });
-
-// // ==========================================
-// // PUBLIC STOREFRONT & DISCOVERY
-// // ==========================================
-
-// exports.getTopRatedCourses = catchAsync(async (req, res, next) => {
-//   const limit = req.query.limit * 1 || 8;
-//   const courses = await Course.find({ isPublished: true, isApproved: true, isDeleted: false })
-//     .sort({ rating: -1, totalEnrollments: -1 }) // Sort by best rating, then most popular
-//     .limit(limit)
-//     .populate('instructor', 'firstName lastName profilePicture')
-//     .select('title slug thumbnail price discountPrice rating totalRatings totalEnrollments level');
-
-//   res.status(200).json({ status: 'success', results: courses.length, data: { courses } });
-// });
-
-// exports.getRelatedCourses = catchAsync(async (req, res, next) => {
-//   const course = await Course.findById(req.params.id);
-//   if (!course) return next(new AppError('Course not found', 404));
-
-//   const relatedCourses = await Course.find({
-//     category: course.category,
-//     _id: { $ne: course._id }, // Exclude current course
-//     isPublished: true,
-//     isApproved: true,
-//     isDeleted: false
-//   })
-//   .sort({ rating: -1 })
-//   .limit(4)
-//   .select('title slug thumbnail price rating level instructor');
-
-//   res.status(200).json({ status: 'success', results: relatedCourses.length, data: { relatedCourses } });
-// });
-
-
-// // ==========================================
-// // PRO FEATURE: DEEP CLONING
-// // ==========================================
-// exports.cloneCourse = catchAsync(async (req, res, next) => {
-//   const originalCourseId = req.params.id;
-  
-//   // 1. Find original
-//   const originalCourse = await Course.findOne({ _id: originalCourseId, instructor: req.user.id }).lean();
-//   if (!originalCourse) return next(new AppError('Course not found or unauthorized', 404));
-
-//   // 2. Clone Course Document
-//   delete originalCourse._id;
-//   originalCourse.title = `${originalCourse.title} (Copy)`;
-//   originalCourse.slug = `${originalCourse.slug}-copy-${Math.random().toString(36).substring(2, 6)}`;
-//   originalCourse.isPublished = false;
-//   originalCourse.isApproved = false;
-//   originalCourse.totalEnrollments = 0;
-//   originalCourse.rating = 0;
-//   originalCourse.totalReviews = 0;
-  
-//   const clonedCourse = await Course.create(originalCourse);
-
-//   // 3. Clone Sections and Lessons
-//   const originalSections = await Section.find({ course: originalCourseId }).lean();
-  
-//   for (const oSection of originalSections) {
-//     const sectionId = oSection._id;
-//     delete oSection._id;
-//     oSection.course = clonedCourse._id;
-//     const clonedSection = await Section.create(oSection);
-
-//     const originalLessons = await Lesson.find({ section: sectionId }).lean();
-//     for (const oLesson of originalLessons) {
-//       delete oLesson._id;
-//       oLesson.course = clonedCourse._id;
-//       oLesson.section = clonedSection._id;
-//       await Lesson.create(oLesson);
-//     }
-//   }
-
-//   res.status(201).json({
-//     status: 'success',
-//     message: 'Course successfully cloned.',
-//     data: { course: clonedCourse }
-//   });
-// });
-
-// // ==========================================
-// // INSTRUCTOR DASHBOARD & ANALYTICS
-// // ==========================================
-// exports.getMyCourses = catchAsync(async (req, res, next) => {
-//   const courses = await Course.find({ instructor: req.user.id, isDeleted: false })
-//     .populate('category', 'name')
-//     .sort('-createdAt')
-//     .lean();
-
-//   res.status(200).json({ status: 'success', results: courses.length, data: { courses } });
-// });
-
-
-
-// exports.getAllCourses = factory.getAll(Course, {
-//   searchFields: ['title', 'description', 'subtitle', 'tags'],
-//   populate: [
-//     { path: 'category', select: 'name slug' },
-//     { path: 'instructor', select: 'firstName lastName profilePicture' }
-//   ]
-// });
-
-// // exports.getCourse = factory.getOne(Course, {
-// //   populate: [
-// //     { path: 'category', select: 'name slug' },
-// //     { path: 'instructor', select: 'firstName lastName email profilePicture bio' }
-// //   ]
-// // });
-
-// // ✅ ADD THIS
-// exports.getCourse = catchAsync(async (req, res, next) => {
-//   // 1. Fetch the main course document
-//   const course = await Course.findOne({ _id: req.params.id, isDeleted: false })
-//     .populate('category', 'name slug')
-//     .populate('instructor', 'firstName lastName email profilePicture bio')
-//     .lean(); // .lean() makes it a standard JS object so we can attach things to it if needed
-
-//   if (!course) {
-//     return next(new AppError('No course found with that ID', 404));
-//   }
-
-//   // 2. Fetch ALL sections for this course (Notice we omit 'isPublished: true' so instructors can edit drafts)
-//   const sections = await Section.find({ course: course._id, isDeleted: false })
-//     .sort('order')
-//     .lean();
-
-//   // 3. Fetch ALL lessons for each section
-//   const sectionsWithLessons = await Promise.all(
-//     sections.map(async (section) => {
-//       const lessons = await Lesson.find({ section: section._id, isDeleted: false })
-//         .sort('order')
-//         .lean();
-      
-//       return { ...section, lessons };
-//     })
-//   );
-
-//   // 4. Send the response in the exact format your new Angular frontend expects
-//   res.status(200).json({
-//     status: 'success',
-//     data: {
-//       course, // The main course details
-//       sections: sectionsWithLessons // The fully populated syllabus
-//     }
-//   });
-// });
-  
-// // ==========================================
-// // THE ULTIMATE SYLLABUS ENGINE
-// // ==========================================
-
-// exports.getCourseWithContent = catchAsync(async (req, res, next) => {
-//   const course = await Course.findOne({ 
-//     slug: req.params.slug,
-//     isDeleted: false
-//   }).populate('category', 'name slug').populate('instructor', 'firstName lastName profilePicture bio totalStudents totalReviews');
-
-//   if (!course) return next(new AppError('No course found with that slug', 404));
-
-//   // 1. Authenticate user silently
-//   let currentUser = null;
-//   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-//     const token = req.headers.authorization.split(' ')[1];
-//     try {
-//       const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
-//       currentUser = decoded.id;
-//     } catch (err) { /* Ignore */ }
-//   }
-
-//   // 2. Access Control & Progress
-//   let isEnrolled = false;
-//   let isOwner = currentUser && course.instructor._id.toString() === currentUser.toString();
-//   let progress = null;
-
-//   if (currentUser && !isOwner) {
-//     // const enrollment = await Enrollment.findOne({ student: currentUser, course: course._id, isActive: true });
-//     const enrollment = await Enrollment.findOne({ student: currentUser, course: course._id, isActive: true });
-//     isEnrolled = !!enrollment;
-
-//     // PRO FEATURE: If enrolled, fetch their exact progress tracking document
-//     if (isEnrolled) {
-//       progress = await ProgressTracking.findOne({ student: currentUser, course: course._id }).select('courseProgressPercentage completedLessons completedQuizzes');
-//     }
-//   }
-
-//   // 3. Fetch Syllabus & Mask Content
-//   const sections = await Section.find({ course: course._id, isDeleted: false, isPublished: true }).sort('order').lean();
-  
-//   const sectionsWithLessons = await Promise.all(
-//     sections.map(async (section) => {
-//       let lessons = await Lesson.find({ section: section._id, isDeleted: false, isPublished: true }).sort('order').lean();
-      
-//       lessons = lessons.map(lesson => {
-//         // PRO FEATURE: Tag completed lessons if progress exists
-//         if (progress && progress.completedLessons) {
-//           lesson.isCompleted = progress.completedLessons.some(cl => cl.lesson.toString() === lesson._id.toString());
-//         }
-
-//         if (!isEnrolled && !isOwner && !lesson.isFree) {
-//           delete lesson.content;
-//           delete lesson.resources;
-//           lesson.isLocked = true; 
-//         }
-//         return lesson;
-//       });
-      
-//       return { ...section, lessons };
-//     })
-//   );
-
-//   // 4. Fetch Top Reviews for the sales page
-//   const reviews = await Review.find({ course: course._id, isApproved: true })
-//     .sort('-helpfulCount -rating')
-//     .limit(3)
-//     .populate('user', 'firstName lastName profilePicture');
-
-//   res.status(200).json({
-//     status: 'success',
-//     data: {
-//       course,
-//       isEnrolled,
-//       isOwner,
-//       userProgress: progress ? progress.courseProgressPercentage : 0,
-//       sections: sectionsWithLessons,
-//       recentReviews: reviews
-//     }
-//   });
-// });
-
-// exports.updateCourse = catchAsync(async (req, res, next) => {
-  
-//   // 1. Remove the slug regeneration block completely.
-//   // We only want to generate slugs in createCourse, NOT updateCourse.
-//   if (req.body.slug) {
-//      // Optional: Prevent frontend from manually updating the slug by accident
-//      delete req.body.slug; 
-//   }
-
-//   const updatedDoc = await Course.findOneAndUpdate(
-//     { _id: req.params.id, instructor: req.user.id, isDeleted: false }, 
-//     req.body, 
-//     { new: true, runValidators: true }
-//   );
-
-//   if (!updatedDoc) return next(new AppError('Course not found or unauthorized', 404));
-//   res.status(200).json({ status: 'success', data: { data: updatedDoc } });
-// });
-// exports.deleteCourse = factory.deleteOne(Course);

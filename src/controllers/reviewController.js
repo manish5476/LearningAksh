@@ -2,6 +2,7 @@ const { Review, Course } = require('../models');
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
 const factory = require('../utils/handlerFactory');
+const ApiFeatures = require('../utils/ApiFeatures');
 
 exports.setCourseUserIds = (req, res, next) => {
   if (!req.body.course) req.body.course = req.params.courseId;
@@ -126,7 +127,25 @@ exports.getCourseReviews = catchAsync(async (req, res, next) => {
 });
 
 // CRUD operations
-exports.getAllReviews = factory.getAll(Review);
+exports.getAllReviews = catchAsync(async (req, res, next) => {
+  const baseFilter = { isApproved: true }; // Explicitly filter for approved reviews
+
+  const features = new ApiFeatures(Review.find(baseFilter), req.query)
+    .filter()
+    .search(['review'])
+    .sort()
+    .limitFields()
+    .paginate();
+
+  const result = await features.execute(Review);
+
+  res.status(200).json({
+    status: 'success',
+    results: result.results,
+    pagination: result.pagination,
+    data: result.data
+  });
+});
 exports.getReview = factory.getOne(Review);
 exports.updateReview = factory.updateOne(Review);
 exports.deleteReview = factory.deleteOne(Review);
