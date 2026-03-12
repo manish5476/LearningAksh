@@ -86,5 +86,6 @@ router.use(authController.restrictTo('admin'));
 
 // Protected by router.param('id')
 router.patch('/:id/approve', courseController.approveCourse);
+router.get('/analytics/:identifier', courseController.getCourseAnalytics);
 
 module.exports = router;

@@ -3,15 +3,7 @@ const slugify = require('slugify');
 const jwt = require('jsonwebtoken');
 const { promisify } = require('util');
 
-const {
-  Course,
-  Category,
-  Section,
-  Lesson,
-  Enrollment,
-  ProgressTracking,
-  Review
-} = require('../models');
+const {Course,Category,Section,Lesson,Enrollment,ProgressTracking,Review} = require('../models');
 
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
@@ -478,4 +470,87 @@ exports.approveCourse = catchAsync(async (req, res, next) => {
   const course = await Course.findByIdAndUpdate(req.params.id, { isApproved: true, approvedBy: req.user.id, approvedAt: Date.now() }, { new: true });
   if (!course) return next(new AppError('No course found with that ID', 404));
   res.status(200).json({ status: 'success', data: { course } });
+});
+
+
+
+
+
+exports.getCourseAnalytics = catchAsync(async (req, res, next) => {
+    const { identifier } = req.params;
+
+    // 1. Find course by ID or Slug
+    const query = identifier.match(/^[0-9a-fA-F]{24}$/) 
+        ? { _id: identifier } 
+        : { slug: identifier };
+
+    const course = await Course.findOne(query);
+
+    if (!course) {
+        return next(new AppError('No course found with that ID or slug', 404));
+    }
+
+    const courseId = course._id;
+
+    // 2. Fetch all related data in parallel for performance
+    const [enrollments, payments, reviews, progressData] = await Promise.all([
+        Enrollment.find({ course: courseId }),
+        Payment.find({ course: courseId, status: 'success' }),
+        Review.find({ course: courseId, isApproved: true }),
+        ProgressTracking.find({ course: courseId })
+    ]);
+
+    // 3. Calculate Financial Metrics
+    const totalRevenue = payments.reduce((sum, p) => sum + p.amount, 0);
+    
+    // 4. Calculate Enrollment & Engagement Metrics
+    const totalEnrollments = enrollments.length;
+    const activeEnrollments = enrollments.filter(e => e.isActive).length;
+    
+    // 5. Calculate Completion Rates
+    const completedCount = progressData.filter(p => p.isCompleted).length;
+    const completionRate = totalEnrollments > 0 
+        ? ((completedCount / totalEnrollments) * 100).toFixed(2) 
+        : 0;
+
+    // 6. Calculate Average Progress
+    const avgProgress = progressData.length > 0
+        ? (progressData.reduce((acc, p) => acc + (p.progressPercentage || 0), 0) / progressData.length).toFixed(2)
+        : 0;
+
+    // 7. Aggregate Ratings
+    const avgRating = reviews.length > 0
+        ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1)
+        : course.rating; // Fallback to course model rating
+
+    // 8. Construct Response
+    res.status(200).json({
+        status: 'success',
+        data: {
+            courseInfo: {
+                id: course._id,
+                title: course.title,
+                slug: course.slug,
+                price: course.price
+            },
+            stats: {
+                revenue: {
+                    total: totalRevenue,
+                    currency: 'USD', // Adjust as needed
+                    transactionCount: payments.length
+                },
+                enrollment: {
+                    total: totalEnrollments,
+                    active: activeEnrollments,
+                    inactive: totalEnrollments - activeEnrollments
+                },
+                engagement: {
+                    averageRating: parseFloat(avgRating),
+                    totalReviews: reviews.length,
+                    completionRate: parseFloat(completionRate),
+                    averageProgress: parseFloat(avgProgress)
+                }
+            }
+        }
+    });
 });
