@@ -14,6 +14,7 @@ dotenv.config({ path: './.env' });
 
 const app = require('./app');
 const connectDB = require('./config/db');
+const queues = require('./jobs'); // Import the queues
 
 // Connect to database
 connectDB();
@@ -33,80 +34,38 @@ process.on('unhandledRejection', err => {
   });
 });
 
-// 3. Graceful shutdown for SIGTERM (Render / Docker / Heroku deployments)
-process.on('SIGTERM', () => {
-  console.log('👋 SIGTERM RECEIVED. Shutting down gracefully');
-  server.close(() => {
-    console.log('💥 Process terminated!');
-  });
-});
+// Centralized graceful shutdown function
+const gracefulShutdown = (signal) => {
+  console.log(`👋 ${signal} RECEIVED. Shutting down gracefully...`);
 
-// 4. Graceful shutdown for SIGINT (Ctrl+C in terminal)
-process.on('SIGINT', () => {
-  console.log('👋 SIGINT RECEIVED. Shutting down gracefully');
-  server.close(() => {
+  server.close(async () => {
+    console.log('✅ HTTP server closed.');
+
+    // Only close queues if Redis is enabled, otherwise mock queues will crash
+    if (process.env.REDIS_ENABLED !== 'false') {
+      console.log('Shutting down message queues...');
+      try {
+        await Promise.all(
+          Object.values(queues).map(queue => {
+            if (queue && typeof queue.close === 'function') {
+              return queue.close();
+            }
+            return Promise.resolve();
+          })
+        );
+        console.log('✅ All queues shut down.');
+      } catch (err) {
+        console.error('Error shutting down queues:', err);
+      }
+    }
+
     console.log('💥 Process terminated!');
     process.exit(0);
   });
-});
-// const mongoose = require('mongoose');
-// const dotenv = require('dotenv');
+};
 
-// // Handle uncaught exceptions
-// process.on('uncaughtException', err => {
-//   console.log('UNCAUGHT EXCEPTION! 💥 Shutting down...');
-//   console.log(err.name, err.message);
-//   console.log(err.stack);
-//   process.exit(1);
-// });
+// 3. Graceful shutdown for SIGTERM (from Render/Docker)
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
-// // Load env vars
-// dotenv.config({ path: './.env' });
-
-// const app = require('./app');
-// const connectDB = require('./config/db');
-
-// // Connect to database
-// connectDB();
-
-// const port = process.env.PORT || 3000;
-// const server = app.listen(port, () => {
-//   console.log(`Server running in ${process.env.NODE_ENV} mode on port ${port}`);
-// });
-
-// // Handle unhandled promise rejections
-// process.on('unhandledRejection', err => {
-//   console.log('UNHANDLED REJECTION! 💥 Shutting down...');
-//   console.log(err.name, err.message);
-//   server.close(() => {
-//     process.exit(1);
-//   });
-// });
-
-// // Graceful shutdown for SIGTERM
-// process.on('SIGTERM', () => {
-//   console.log('👋 SIGTERM RECEIVED. Shutting down gracefully');
-//   server.close(() => {
-//     console.log('💥 Process terminated!');
-//   });
-// });
-// // require('dotenv').config(); // Load environment variables first
-// // const app = require('./app');
-// // const connectDB = require('./config/db');
-
-// // const PORT = process.env.PORT || 5000;
-
-// // // Connect to Database, then start server
-// // connectDB().then(() => {
-// //   app.listen(PORT, () => {
-// //     console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
-// //     console.log(`Health Check: http://localhost:${PORT}/api/v1/health`);
-// //   });
-// // });
-
-// // // Handle unhandled promise rejections (e.g., failed DB connection after initial load)
-// // process.on('unhandledRejection', (err) => {
-// //   console.log('UNHANDLED REJECTION! 💥 Shutting down...');
-// //   console.log(err.name, err.message);
-// //   process.exit(1);
-// // });
+// 4. Graceful shutdown for SIGINT (from Ctrl+C)
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));

@@ -15,16 +15,4 @@ const queues = {
   cleanup: cleanupQueue
 };
 
-// Graceful shutdown handler
-async function shutdown() {
-  console.log('Shutting down queues...');
-  await Promise.all(
-    Object.values(queues).map(queue => queue.close())
-  );
-  process.exit(0);
-}
-
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
-
 module.exports = queues;
