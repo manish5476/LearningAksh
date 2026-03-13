@@ -7,10 +7,11 @@ const { protect, restrictTo } = require('../middlewares/authMiddleware');
 const router = express.Router();
 
 // ==================== PUBLIC ROUTES ====================
+router.get('/slug/:id', courseController.getCourseSmart);
 router.get('/published', courseController.getPublishedCourses);
 router.get('/master-data', courseController.getCourseMasterData);
 router.get('/:id/structure', courseController.getCourseStructure);
-router.get('/:id', courseController.getCourse);
+router.get('/:id', courseController.getCourseSmart);
 router.get('/', courseController.getAllCourses);
 
 // ==================== NESTED ROUTES ====================

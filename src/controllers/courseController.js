@@ -826,7 +826,76 @@ exports.getCourseMasterData = catchAsync(async (req, res, next) => {
 });
 
 // ==================== STANDARD CRUD OPERATIONS ====================
+/* =======================================================
+  SMART GET COURSE (Handles both ID and Slug)
+======================================================= */
+exports.getCourseSmart = catchAsync(async (req, res, next) => {
+  const { id } = req.params; // We extract 'id' because your route is defined as /slug/:id
 
+  // 1. Detect if the parameter is a MongoDB ObjectId or a text Slug
+  const isMongoId = mongoose.Types.ObjectId.isValid(id) && (String(new mongoose.Types.ObjectId(id)) === id);
+  
+  // 2. Dynamically build the query
+  const query = isMongoId ? { _id: id } : { slug: id };
+  query.isDeleted = false; // Never return deleted courses
+
+  // 3. Fetch the course and populate relations
+  const course = await Course.findOne(query)
+    .populate('category', 'name slug')
+    // ✅ FIX 1: Populate the primary instructor
+    .populate('primaryInstructor', 'firstName lastName profilePicture bio totalStudents totalReviews')
+    // ✅ FIX 2 (Optional but recommended): Populate the co-instructors array
+    .populate('instructors.instructor', 'firstName lastName profilePicture bio')
+    .lean(); // Use .lean() for faster read-only execution
+
+  // 4. Handle 404
+  if (!course) {
+    return next(new AppError('No course found with that ID or slug', 404));
+  }
+
+  // 5. Fetch the Curriculum Tree (Sections and Lessons)
+  const sections = await Section.find({ 
+    course: course._id, 
+    isDeleted: false, 
+    isPublished: true 
+  }).sort('order').lean();
+
+  const lessons = await Lesson.find({ 
+    course: course._id, 
+    isDeleted: false, 
+    isPublished: true 
+  }).sort('order').lean();
+
+  // 6. Group lessons to their parent sections using safe .toString() mapping
+  const lessonsMap = {};
+  lessons.forEach(lesson => {
+    const sectionId = lesson.section.toString();
+    if (!lessonsMap[sectionId]) lessonsMap[sectionId] = [];
+    lessonsMap[sectionId].push(lesson);
+  });
+
+  const sectionsWithLessons = sections.map(section => ({
+    ...section,
+    lessons: lessonsMap[section._id.toString()] || []
+  }));
+
+  // 7. Send the consolidated response
+  res.status(200).json({
+    status: 'success',
+    data: {
+      course,
+      sections: sectionsWithLessons
+    }
+  });
+});
+
+// Fetch a course by its slug, and optionally populate the instructor and category
+// exports.getCourseBySlug = factory.getOneBySlug(Course, {
+//   populate: [
+//     { path: 'category', select: 'name slug' },
+//     { path: 'instructor', select: 'firstName lastName profilePicture bio' }
+//   ]
+// });
 exports.createCourse = factory.createOne(Course);
 exports.updateCourse = factory.updateOne(Course);
 exports.deleteCourse = factory.deleteOne(Course);

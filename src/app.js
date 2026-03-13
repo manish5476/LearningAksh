@@ -22,7 +22,7 @@ const queueMonitor = require('./jobs/queueMonitor');
 const { protect, restrictTo } = require('./middlewares/authMiddleware');
 
 const app = express();
-
+const initializeMasters = require('./utils/initializeMasters');
 // ============================================
 // PROMETHEUS METRICS COLLECTION
 // ============================================
@@ -122,6 +122,7 @@ app.use(fileUpload({
 // DEVELOPMENT LOGGING
 // ============================================
 if (process.env.NODE_ENV === 'development') {
+  
   app.use(morgan('dev', {
     skip: (req, res) => res.statusCode < 400,
     stream: { write: message => logger.http(message.trim()) }

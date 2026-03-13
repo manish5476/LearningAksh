@@ -213,3 +213,31 @@ exports.count = (Model) =>
     const count = await Model.countDocuments(filter);
     res.status(200).json({ status: "success", data: { count } });
   });
+
+/* =======================================================
+GET SINGLE DOCUMENT BY SLUG (For Public/SEO Routes)
+======================================================= */
+exports.getOneBySlug = (Model, options = {}) =>
+  catchAsync(async (req, res, next) => {
+    // 1. Build the filter using the slug from the URL parameters
+    let filter = { slug: req.params.slug, ...(req.filter || {}) };
+
+    // 2. Exclude soft-deleted documents if the schema supports it
+    if (Model.schema.path("isDeleted")) filter.isDeleted = { $ne: true };
+
+    // 3. Build the query
+    let query = Model.findOne(filter);
+
+    // 4. Apply population and lean options
+    if (options.populate) {
+      options.populate.forEach(pop => { query = query.populate(pop); });
+    }
+    if (options.lean !== false) query = query.lean();
+
+    // 5. Execute query
+    const doc = await query;
+    if (!doc) return next(new AppError("No document found with that slug", 404));
+
+    // 6. Send response
+    res.status(200).json({ status: "success", data: doc });
+  });

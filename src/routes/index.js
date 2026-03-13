@@ -101,7 +101,7 @@ router.use('/certificates', certificateRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/discussions', discussionRoutes);
-router.use('/master', masterRoutes);
+router.use('/masters', masterRoutes);
 
 // NEW ROUTES
 router.use('/coupons', couponRoutes);
