@@ -31,6 +31,7 @@ const studentNoteRoutes = require('./studentNoteRoutes');
 const analyticsRoutes = require('./analyticsRoutes');
 const reportRoutes = require('./reportRoutes');
 const importExportRoutes = require('./importExportRoutes');
+const masterRoutes = require('./masterRoutes');
 
 // Health check endpoint
 router.get('/health', (req, res) => {
@@ -100,6 +101,7 @@ router.use('/certificates', certificateRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/discussions', discussionRoutes);
+router.use('/master', masterRoutes);
 
 // NEW ROUTES
 router.use('/coupons', couponRoutes);

@@ -29,9 +29,11 @@ const studentExperience = require('./core/studentExperienceDomain.model');
 
 // Contains: Coupon, Announcement, Cohort
 const marketing = require('./core/marketingDomain.model');
+const Master = require('../config/Master');
 
 module.exports = {
   ...UserModels,
+  // ...Master,
   ...CourseModels,
   ...AssessmentModels,
   ...ExerciseModels,
