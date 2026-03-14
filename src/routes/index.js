@@ -19,6 +19,7 @@ const certificateRoutes = require('./certificateRoutes');
 const notificationRoutes = require('./notificationRoutes');
 const paymentRoutes = require('./paymentRoutes');
 const discussionRoutes = require('./discussionRoutes');
+const dropdown = require('./dropdownRoutes');
 
 // NEW ROUTES
 const couponRoutes = require('./couponRoutes');
@@ -96,6 +97,7 @@ router.use('/quizzes', quizRoutes);
 router.use('/assignments', assignmentRoutes);
 router.use('/coding-exercises', codingExerciseRoutes);
 router.use('/mock-tests', mockTestRoutes);
+router.use('/dropdown', dropdown);
 router.use('/progress', progressRoutes);
 router.use('/certificates', certificateRoutes);
 router.use('/notifications', notificationRoutes);

@@ -169,19 +169,20 @@ app.use('/api/v1/upload', uploadLimiter);
 // BODY PARSERS (JSON & URL-Encoded)
 // ============================================
 // Fixed: JSON limit dropped to 10kb to prevent Event Loop DOS attacks
-app.use(express.json({ 
-  limit: '10kb', 
-  verify: (req, res, buf) => {
-    req.rawBody = buf.toString();
-  }
-}));
+// app.use(express.json({ 
+//   limit: '50mb', 
+//   verify: (req, res, buf) => {
+//     req.rawBody = buf.toString();
+//   }
+// }));
 
-app.use(express.urlencoded({ 
-  extended: true, 
-  limit: '10kb',
-  parameterLimit: 1000
-}));
-
+// app.use(express.urlencoded({ 
+//   extended: true, 
+//   limit: '10kb',
+//   parameterLimit: 1000
+// }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // ============================================
 // DATA SANITIZATION
 // ============================================

@@ -5,11 +5,51 @@ const paymentSchema = new mongoose.Schema({
   course: { type: mongoose.Schema.Types.ObjectId, ref: 'Course' },
   mockTest: { type: mongoose.Schema.Types.ObjectId, ref: 'MockTest' },
   amount: { type: Number, required: true },
-  currency: { type: String, default: 'INR' }, // Changed default to INR based on your earlier course JSON
-  paymentMethod: { type: String, enum: ['credit_card', 'debit_card', 'paypal', 'bank_transfer', 'upi', 'razorpay', 'stripe'] },
-  transactionId: { type: String, required: true, unique: true }, // Mongoose auto-creates the index here
+  
+  // Refactored to use Master validation
+  currency: { 
+    type: String, 
+    default: 'INR',
+    validate: {
+      validator: async function(value) {
+        if (!value) return true;
+        const Master = mongoose.model('Master');
+        return await Master.validateValue('currency', value);
+      },
+      message: 'Invalid currency'
+    }
+  },
+  
+  // Refactored to use Master validation
+  paymentMethod: { 
+    type: String,
+    validate: {
+      validator: async function(value) {
+        if (!value) return true;
+        const Master = mongoose.model('Master');
+        return await Master.validateValue('payment_method', value);
+      },
+      message: 'Invalid payment method'
+    }
+  },
+  
+  transactionId: { type: String, required: true, unique: true }, 
   paymentGateway: String,
-  status: { type: String, enum: ['pending', 'success', 'failed', 'refunded'], default: 'pending' },
+  
+  // Refactored to use Master validation
+  status: { 
+    type: String, 
+    default: 'pending',
+    validate: {
+      validator: async function(value) {
+        if (!value) return true;
+        const Master = mongoose.model('Master');
+        return await Master.validateValue('payment_status', value);
+      },
+      message: 'Invalid payment status'
+    }
+  },
+  
   refundAmount: Number,
   refundReason: String,
   refundedAt: Date,
@@ -32,7 +72,7 @@ const enrollmentSchema = new mongoose.Schema({
 enrollmentSchema.statics.calcTotalEnrollments = async function(courseId) {
   try {
     const stats = await this.aggregate([
-      { $match: { course: courseId, isActive: true, isRevoked: false } }, // Added isRevoked check for accuracy
+      { $match: { course: courseId, isActive: true, isRevoked: false } }, 
       { $group: { _id: '$course', totalEnrollments: { $sum: 1 } } }
     ]);
 
@@ -59,7 +99,6 @@ enrollmentSchema.post('save', function() {
 
 // Hook for Admin Deletion / Updates / Revokes
 enrollmentSchema.post(/^findOneAnd/, async function(doc) {
-  // Check if doc exists (in case a findOneAndDelete didn't find a matching document)
   if (doc) {
     await doc.constructor.calcTotalEnrollments(doc.course);
   }
@@ -68,13 +107,7 @@ enrollmentSchema.post(/^findOneAnd/, async function(doc) {
 // ==========================================
 // INDEXES
 // ==========================================
-// Removed the redundant transactionId index to fix the Mongoose warning!
-// paymentSchema.index({ transactionId: 1 }); 
-
-// Prevent a student from enrolling in the exact same course twice
 enrollmentSchema.index({ student: 1, course: 1 }, { unique: true });
-
-// Added index for faster dashboard queries (e.g. "Find all payments for User X")
 paymentSchema.index({ user: 1, status: 1 });
 
 // ==========================================
@@ -93,9 +126,9 @@ module.exports = {
 //   course: { type: mongoose.Schema.Types.ObjectId, ref: 'Course' },
 //   mockTest: { type: mongoose.Schema.Types.ObjectId, ref: 'MockTest' },
 //   amount: { type: Number, required: true },
-//   currency: { type: String, default: 'USD' },
+//   currency: { type: String, default: 'INR' }, // Changed default to INR based on your earlier course JSON
 //   paymentMethod: { type: String, enum: ['credit_card', 'debit_card', 'paypal', 'bank_transfer', 'upi', 'razorpay', 'stripe'] },
-//   transactionId: { type: String, required: true, unique: true },
+//   transactionId: { type: String, required: true, unique: true }, // Mongoose auto-creates the index here
 //   paymentGateway: String,
 //   status: { type: String, enum: ['pending', 'success', 'failed', 'refunded'], default: 'pending' },
 //   refundAmount: Number,
@@ -114,39 +147,62 @@ module.exports = {
 //   isRevoked: { type: Boolean, default: false }
 // }, { timestamps: true });
 
+// // ==========================================
+// // STATICS & AGGREGATIONS
+// // ==========================================
 // enrollmentSchema.statics.calcTotalEnrollments = async function(courseId) {
-//   const stats = await this.aggregate([
-//     { $match: { course: courseId, isActive: true } },
-//     { $group: { _id: '$course', totalEnrollments: { $sum: 1 } } }
-//   ]);
+//   try {
+//     const stats = await this.aggregate([
+//       { $match: { course: courseId, isActive: true, isRevoked: false } }, // Added isRevoked check for accuracy
+//       { $group: { _id: '$course', totalEnrollments: { $sum: 1 } } }
+//     ]);
 
-//   // Dynamically resolve model
-//   const Course = mongoose.model('Course');
+//     // Dynamically resolve model to avoid circular dependencies
+//     const Course = mongoose.model('Course');
 
-//   if (stats.length > 0) {
-//     await Course.findByIdAndUpdate(courseId, { totalEnrollments: stats[0].totalEnrollments });
-//   } else {
-//     await Course.findByIdAndUpdate(courseId, { totalEnrollments: 0 });
+//     if (stats.length > 0) {
+//       await Course.findByIdAndUpdate(courseId, { totalEnrollments: stats[0].totalEnrollments });
+//     } else {
+//       await Course.findByIdAndUpdate(courseId, { totalEnrollments: 0 });
+//     }
+//   } catch (error) {
+//     console.error('Error calculating total enrollments:', error);
 //   }
 // };
 
-// // Hook for Creation / Expiry Updates
+// // ==========================================
+// // MIDDLEWARE (HOOKS)
+// // ==========================================
+// // Hook for Creation
 // enrollmentSchema.post('save', function() {
 //   this.constructor.calcTotalEnrollments(this.course);
 // });
 
-// // Hook for Admin Deletion / Revokes
+// // Hook for Admin Deletion / Updates / Revokes
 // enrollmentSchema.post(/^findOneAnd/, async function(doc) {
+//   // Check if doc exists (in case a findOneAndDelete didn't find a matching document)
 //   if (doc) {
 //     await doc.constructor.calcTotalEnrollments(doc.course);
 //   }
 // });
 
-// paymentSchema.index({ transactionId: 1 });
+// // ==========================================
+// // INDEXES
+// // ==========================================
+// // Removed the redundant transactionId index to fix the Mongoose warning!
+// // paymentSchema.index({ transactionId: 1 }); 
+
+// // Prevent a student from enrolling in the exact same course twice
 // enrollmentSchema.index({ student: 1, course: 1 }, { unique: true });
 
-// // Serverless / Hot-Reload Safe Exports
+// // Added index for faster dashboard queries (e.g. "Find all payments for User X")
+// paymentSchema.index({ user: 1, status: 1 });
+
+// // ==========================================
+// // EXPORTS
+// // ==========================================
 // module.exports = {
 //   Payment: mongoose.models.Payment || mongoose.model('Payment', paymentSchema),
 //   Enrollment: mongoose.models.Enrollment || mongoose.model('Enrollment', enrollmentSchema)
 // };
+

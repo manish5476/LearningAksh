@@ -148,9 +148,8 @@ router.patch('/:id/restore',
 // ==================== BULK OPERATIONS ====================
 router.post('/bulk/create', 
   restrictTo('admin'),
-  courseController.bulkCreateCourses
+  courseController.bulkCreateCourses  
 );
-
 router.patch('/bulk/update', 
   restrictTo('admin'),
   courseController.bulkUpdateCourses

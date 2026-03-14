@@ -119,14 +119,32 @@ exports.deleteOne = (Model) =>
 /* =======================================================
 BULK CREATE
 ======================================================= */
+// exports.bulkCreate = (Model) =>
+//   catchAsync(async (req, res, next) => {
+//     if (!Array.isArray(req.body)) return next(new AppError("Body must be an array", 400));
+//     const docs = req.body.map(item => ({ ...item, ...(req.filter || {}) }));
+//     const result = await Model.insertMany(docs, { ordered: false });
+//     res.status(201).json({ status: "success", results: result.length, data: result });
+//   });
 exports.bulkCreate = (Model) =>
   catchAsync(async (req, res, next) => {
     if (!Array.isArray(req.body)) return next(new AppError("Body must be an array", 400));
-    const docs = req.body.map(item => ({ ...item, ...(req.filter || {}) }));
-    const result = await Model.insertMany(docs, { ordered: false });
-    res.status(201).json({ status: "success", results: result.length, data: result });
+    
+    const docs = req.body.map(item => ({ 
+      ...item, 
+      primaryInstructor: req.user._id,  // Add this!
+      ...(req.filter || {}) 
+    }));
+    
+    // CHANGE THIS: ordered: true will STOP at first error and throw
+    const result = await Model.insertMany(docs, { ordered: true });
+    
+    res.status(201).json({ 
+      status: "success", 
+      results: result.length, 
+      data: result 
+    });
   });
-
 /* =======================================================
 BULK UPDATE
 ======================================================= */
