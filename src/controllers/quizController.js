@@ -2,6 +2,7 @@ const { Quiz, QuizQuestion, Course, Lesson, ProgressTracking } = require('../mod
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
 const factory = require('../utils/handlerFactory');
+const mongoose = require('mongoose');
 
 exports.createQuiz = catchAsync(async (req, res, next) => {
   const { course, lesson } = req.body;
@@ -34,6 +35,75 @@ exports.createQuiz = catchAsync(async (req, res, next) => {
     data: { quiz }
   });
 });
+
+exports.getQuizzesByCourse = catchAsync(async (req, res, next) => {
+  const { identifier } = req.params;
+  let course;
+  if (mongoose.Types.ObjectId.isValid(identifier)) {
+    course = await Course.findById(identifier);
+  } else {
+    // Otherwise search by slug
+    course = await Course.findOne({ slug: identifier });
+  }
+
+  if (!course) {
+    return next(new AppError('No course found with that identifier', 404));
+  }
+
+  // Fetch quizzes using course _id
+  const quizzes = await Quiz.find({
+    course: course._id,
+    isDeleted: false
+  })
+  .populate('lesson', 'title order')
+  .sort({ createdAt: -1 });
+
+  res.status(200).json({
+    status: 'success',
+    results: quizzes.length,
+    data: {
+      course: {
+        id: course._id,
+        title: course.title,
+        slug: course.slug
+      },
+      quizzes
+    }
+  });
+
+});
+
+
+// exports.getQuizzesByCourse = catchAsync(async (req, res, next) => {
+//   const { courseId } = req.params;
+//   const course = await Course.findById(courseId);
+//   if (!course) {
+//     return next(new AppError('No course found with that ID', 404));
+//   }
+//   if (req.user.role === 'student') {
+//     const { Enrollment } = require('../models');
+//     const enrollment = await Enrollment.findOne({
+//       student: req.user.id,
+//       course: courseId,
+//       isActive: true
+//     });
+//     if (!enrollment) {
+//       return next(new AppError('You are not enrolled in this course', 403));
+//     }
+//   }
+
+//   const quizzes = await Quiz.find({ course: courseId })
+//     .populate('lesson', 'title order')
+//     .sort({ createdAt: -1 });
+
+//   res.status(200).json({
+//     status: 'success',
+//     results: quizzes.length,
+//     data: {
+//       quizzes
+//     }
+//   });
+// });
 
 exports.addQuestions = catchAsync(async (req, res, next) => {
   const { questions } = req.body;

@@ -1,5 +1,5 @@
 // controllers/courseController.js
-const { Course, Section, Lesson, InstructorInvitation, Master } = require('../models');
+const { Course,Quiz, Section, Lesson, InstructorInvitation, Master } = require('../models');
 const factory = require('../utils/handlerFactory');
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
@@ -688,49 +688,57 @@ exports.getPublishedCourses = catchAsync(async (req, res, next) => {
   });
 });
 
-// Get full course structure
 exports.getCourseStructure = catchAsync(async (req, res, next) => {
-  const course = await Course.findOne({ 
-    _id: req.params.id,
-    isDeleted: { $ne: true }
-  })
-  .populate({
-    path: 'instructors.instructor',
-    select: 'name email avatar'
-  })
-  .populate('primaryInstructor', 'name email avatar')
-  .populate('category', 'name slug')
-  .lean();
-  
+
+  const { id } = req.params;
+
+  let courseQuery = { isDeleted: { $ne: true } };
+
+  if (mongoose.Types.ObjectId.isValid(id)) {
+    courseQuery._id = id;
+  } else {
+    courseQuery.slug = id;
+  }
+
+  const course = await Course.findOne(courseQuery)
+    .populate({
+      path: 'instructors.instructor',
+      select: 'name email avatar'
+    })
+    .populate('primaryInstructor', 'name email avatar')
+    .populate('category', 'name slug')
+    .lean();
+
   if (!course) {
     return next(new AppError('Course not found', 404));
   }
-  
-  const sections = await Section.find({ 
+
+  const sections = await Section.find({
     course: course._id,
     isDeleted: { $ne: true }
   })
   .sort('order')
   .lean();
-  
+
   const sectionsWithLessons = await Promise.all(
     sections.map(async (section) => {
-      const lessons = await Lesson.find({ 
+
+      const lessons = await Lesson.find({
         section: section._id,
         isDeleted: { $ne: true }
       })
-      .populate('createdBy', 'name email')
-      .populate('lastModifiedBy', 'name email')
-      .sort('order')
-      .lean();
-      
+        .populate('createdBy', 'name email')
+        .populate('lastModifiedBy', 'name email')
+        .sort('order')
+        .lean();
+
       return {
         ...section,
         lessons
       };
     })
   );
-  
+
   res.status(200).json({
     status: 'success',
     data: {
@@ -738,6 +746,7 @@ exports.getCourseStructure = catchAsync(async (req, res, next) => {
       sections: sectionsWithLessons
     }
   });
+
 });
 
 // Get course analytics (Fixed ObjectId instantiation for newer Mongoose versions)
@@ -914,39 +923,79 @@ exports.getCourseSmart = catchAsync(async (req, res, next) => {
   });
 });
 
+exports.getCourseQuizzes = catchAsync(async (req, res, next) => {
+  const identifier = req.params.slug; // Even though the route says :slug, it might hold an ID
+
+  // 1. Create a dynamic query based on what the frontend sent
+  const query = mongoose.isValidObjectId(identifier) 
+    ? { _id: identifier } 
+    : { slug: identifier };
+
+  // 2. Find the course using the smart query
+  const course = await Course.findOne(query).select('_id title');
+
+  if (!course) {
+    return next(new AppError('Course not found', 404));
+  }
+
+  // 3. Fetch the quizzes using the guaranteed course._id
+  const quizzes = await Quiz.find({
+    course: course._id,
+    isDeleted: false
+  })
+  .select('-questions') // Excludes the heavy questions array
+  .populate('lesson', 'title order')
+  .sort({ createdAt: -1 });
+
+  res.status(200).json({
+    status: 'success',
+    results: quizzes.length,
+    data: {
+      course, 
+      quizzes
+    }
+  });
+});
+
+// exports.getCourseQuizzes = catchAsync(async (req, res, next) => {
+
+//   // 👇 ADDED .select('_id title') to only fetch the ID and Name (title) of the course
+//   const course = await Course.findOne({ slug: req.params.slug }).select('_id title');
+
+//   if (!course) {
+//     return next(new AppError('Course not found', 404));
+//   }
+
+//   const quizzes = await Quiz.find({
+//     course: course._id,
+//     isDeleted: false
+//   })
+//   .select('-questions') // Excludes the heavy questions array
+//   .populate('lesson', 'title order')
+//   .sort({ createdAt: -1 });
+//   res.status(200).json({
+//     status: 'success',
+//     results: quizzes.length,
+//     data: {
+//       course,   // Now this will only contain { _id: '...', title: '...' }
+//       quizzes
+//     }
+//   });
+
+// });
+
+
 exports.createCourse = factory.createOne(Course);
 exports.updateCourse = factory.updateOne(Course);
 exports.deleteCourse = factory.deleteOne(Course);
-// exports.getCourse = factory.getOne(Course, {
-//   populate: [
-//     { path: 'category', select: 'name slug' },
-//     { path: 'primaryInstructor', select: 'name email avatar' },
-//     { 
-//       path: 'instructors.instructor', 
-//       select: 'name email avatar' 
-//     },
-//     { path: 'approvedBy', select: 'name email' }
-//   ]
-// });
 exports.getCourse = factory.getOne(Course, {
   populate: [
-    // ✅ 1. References Master Collection automatically. 
-    // Added 'code' just in case the frontend needs it for matching.
     { path: 'category', select: 'name slug code' }, 
-
-    // ✅ 2. FIXED: Uses your actual User schema fields (firstName, lastName, profilePicture)
-    { path: 'primaryInstructor', select: 'firstName lastName email profilePicture' },
-    
-    { 
-      path: 'instructors.instructor', 
-      select: 'firstName lastName email profilePicture' 
-    },
-    
+    { path: 'primaryInstructor', select: 'firstName lastName email profilePicture' },    
+    { path: 'instructors.instructor', select: 'firstName lastName email profilePicture' },
     { path: 'approvedBy', select: 'firstName lastName email' }
   ]
 });
-
-// Make sure to also update getAllCourses so list views don't break!
 exports.getAllCourses = factory.getAll(Course, {
   searchFields: ['title', 'subtitle', 'description'],
   populate: [
@@ -954,14 +1003,6 @@ exports.getAllCourses = factory.getAll(Course, {
     { path: 'primaryInstructor', select: 'firstName lastName email profilePicture' }
   ]
 });
-
-// exports.getAllCourses = factory.getAll(Course, {
-//   searchFields: ['title', 'subtitle', 'description'],
-//   populate: [
-//     { path: 'category', select: 'name slug' },
-//     { path: 'primaryInstructor', select: 'name email' }
-//   ]
-// });
 
 exports.bulkCreateCourses = factory.bulkCreate(Course);
 exports.bulkUpdateCourses = factory.bulkUpdate(Course);
