@@ -12,14 +12,25 @@ exports.getAll = (Model, options = {}) =>
   catchAsync(async (req, res, next) => {
     let baseFilter = { ...(req.filter || {}) };
 
+    // --- ADD THIS BLOCK ---
+    let queryObj = { ...req.query };
+    if (req.query.params) {
+      try {
+        queryObj = JSON.parse(req.query.params);
+      } catch (err) {
+        return next(new AppError('Invalid JSON format in params', 400));
+      }
+    }
+    // ----------------------
+
     if (Model.schema.path("isDeleted")) baseFilter.isDeleted = { $ne: true };
 
-    const features = new ApiFeatures(Model.find(baseFilter), req.query)
+    // Change req.query to queryObj here
+    const features = new ApiFeatures(Model.find(baseFilter), queryObj) 
       .filter()
       .search(options.searchFields || [])
       .sort()
       .limitFields();
-
     if (req.query.cursor) features.cursorPaginate();
     else features.paginate();
 

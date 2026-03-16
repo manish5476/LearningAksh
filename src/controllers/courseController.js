@@ -536,7 +536,6 @@ exports.createInvitation = catchAsync(async (req, res, next) => {
   
   // 5. Generate token and create invitation
   const token = crypto.randomBytes(32).toString('hex');
-  
   const invitation = await InstructorInvitation.create({
     course: courseId,
     email: targetEmail,
