@@ -10,7 +10,6 @@ const generateSlug = (name) => {
     .replace(/\-\-+/g, '-')
     .replace(/^-+/, '')
     .replace(/-+$/, '');
-  
   return `${slugify(name)}-${nanoid(6)}`;
 };
 

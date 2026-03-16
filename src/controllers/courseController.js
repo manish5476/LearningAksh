@@ -486,7 +486,14 @@ exports.getCourseInstructors = catchAsync(async (req, res, next) => {
 exports.createInvitation = catchAsync(async (req, res, next) => {
   const { email, role, permissions } = req.body;
   const courseId = req.params.id;
+  const targetEmail = email.toLowerCase().trim();
   
+  // 1. Prevent inviting yourself
+  if (targetEmail === req.user.email.toLowerCase()) {
+    return next(new AppError('You cannot invite yourself to the course.', 400));
+  }
+
+  // 2. Validate Role
   if (role) {
     const isValidRole = await Master.validateValue('instructor_role', role);
     if (!isValidRole) {
@@ -498,12 +505,41 @@ exports.createInvitation = catchAsync(async (req, res, next) => {
   if (!course) {
     return next(new AppError('Course not found', 404));
   }
+
+  // 3. Prevent duplicate pending invitations
+  const existingInvitation = await InstructorInvitation.findOne({
+    course: courseId,
+    email: targetEmail,
+    status: 'pending'
+  });
+
+  if (existingInvitation) {
+    return next(new AppError('A pending invitation has already been sent to this email address.', 400));
+  }
+
+  // 4. Check if the user is ALREADY an instructor in this course
+  const User = require('../models/userModel'); // Ensure User model is imported
+  const targetUser = await User.findOne({ email: targetEmail });
   
+  if (targetUser) {
+    // Check primary instructor
+    const isPrimary = course.primaryInstructor?.toString() === targetUser._id.toString();
+    // Check co-instructors array
+    const isCoInstructor = course.instructors.some(
+      inst => inst.instructor.toString() === targetUser._id.toString()
+    );
+
+    if (isPrimary || isCoInstructor) {
+      return next(new AppError('This user is already an instructor for this course.', 400));
+    }
+  }
+  
+  // 5. Generate token and create invitation
   const token = crypto.randomBytes(32).toString('hex');
   
   const invitation = await InstructorInvitation.create({
     course: courseId,
-    email,
+    email: targetEmail,
     invitedBy: req.user.id,
     token,
     role: role || 'co-instructor',
@@ -513,7 +549,7 @@ exports.createInvitation = catchAsync(async (req, res, next) => {
       canManageLessons: true,
       canManageStudents: false,
       canViewAnalytics: true,
-      canGradeAssignments: false
+      canGradeAssignments: false  
     },
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) 
   });
@@ -521,6 +557,23 @@ exports.createInvitation = catchAsync(async (req, res, next) => {
   res.status(201).json({
     status: 'success',
     data: invitation
+  });
+});
+// Get pending invitations for the currently logged-in user
+exports.getMyPendingInvitations = catchAsync(async (req, res, next) => {
+  // Find all pending invitations where the email matches the logged-in user
+  const invitations = await InstructorInvitation.find({ 
+    email: req.user.email,
+    status: 'pending'
+  })
+  .populate('course', 'title thumbnail slug') // Bring in course details to show in the UI
+  .populate('invitedBy', 'firstName lastName')
+  .sort('-createdAt');
+  
+  res.status(200).json({
+    status: 'success',
+    results: invitations.length,
+    data: invitations
   });
 });
 
@@ -574,7 +627,7 @@ exports.acceptInvitation = catchAsync(async (req, res, next) => {
   });
 });
 
-// Get all invitations for a course
+// Get all invitations for a courses
 exports.getCourseInvitations = catchAsync(async (req, res, next) => {
   const invitations = await InstructorInvitation.find({ 
     course: req.params.id 
@@ -957,34 +1010,6 @@ exports.getCourseQuizzes = catchAsync(async (req, res, next) => {
   });
 });
 
-// exports.getCourseQuizzes = catchAsync(async (req, res, next) => {
-
-//   // 👇 ADDED .select('_id title') to only fetch the ID and Name (title) of the course
-//   const course = await Course.findOne({ slug: req.params.slug }).select('_id title');
-
-//   if (!course) {
-//     return next(new AppError('Course not found', 404));
-//   }
-
-//   const quizzes = await Quiz.find({
-//     course: course._id,
-//     isDeleted: false
-//   })
-//   .select('-questions') // Excludes the heavy questions array
-//   .populate('lesson', 'title order')
-//   .sort({ createdAt: -1 });
-//   res.status(200).json({
-//     status: 'success',
-//     results: quizzes.length,
-//     data: {
-//       course,   // Now this will only contain { _id: '...', title: '...' }
-//       quizzes
-//     }
-//   });
-
-// });
-
-
 exports.createCourse = factory.createOne(Course);
 exports.updateCourse = factory.updateOne(Course);
 exports.deleteCourse = factory.deleteOne(Course);
@@ -1003,7 +1028,6 @@ exports.getAllCourses = factory.getAll(Course, {
     { path: 'primaryInstructor', select: 'firstName lastName email profilePicture' }
   ]
 });
-
 exports.bulkCreateCourses = factory.bulkCreate(Course);
 exports.bulkUpdateCourses = factory.bulkUpdate(Course);
 exports.bulkDeleteCourses = factory.bulkDelete(Course);

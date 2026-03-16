@@ -39,21 +39,7 @@ const userSchema = new mongoose.Schema({
     street: String, city: String, state: String, country: String, zipCode: String
   },
   
-  // Refactored to use Master validation
-  // role: { 
-  //   type: String, 
-  //   default: 'student', 
-  //   required: true,
-  //   validate: {
-  //     validator: async function(value) {
-  //       if (!value) return true;
-  //       const Master = mongoose.model('Master');
-  //       return await Master.validateValue('user_role', value);
-  //     },
-  //     message: 'Invalid user role'
-  //   }
-  // },
-  role: { type: String, enum: ['student', 'instructor', 'admin'], default: 'student', required: true },
+  role: { type: String, enum: ['student', 'instructor', 'admin','co-instructor'], default: 'student', required: true },
   
   isActive: { type: Boolean, default: true },
   isEmailVerified: { type: Boolean, default: false },
@@ -101,6 +87,21 @@ userSchema.methods.createPasswordResetToken = function() {
   return resetToken;
 };
 
+ // Refactored to use Master validation
+  // role: { 
+  //   type: String, 
+  //   default: 'student', 
+  //   required: true,
+  //   validate: {
+  //     validator: async function(value) {
+  //       if (!value) return true;
+  //       const Master = mongoose.model('Master');
+  //       return await Master.validateValue('user_role', value);
+  //     },
+  //     message: 'Invalid user role'
+  //   }
+  // },
+ 
 // ==========================================
 // PROFILES
 // ==========================================

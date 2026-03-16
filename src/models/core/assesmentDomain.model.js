@@ -41,10 +41,8 @@ const mockTestQuestionSchema = new mongoose.Schema({
 const mockTestSchema = new mongoose.Schema({
   title: { type: String, required: true },
   description: String,
-  // ✅ FIX: Corrected typo 'Ma' to 'Master'
   category: { type: mongoose.Schema.Types.ObjectId, ref: 'Master', required: true },
   instructor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  // ✅ FIX: Removed strict enum, added uppercase to accept Master codes (e.g., 'BEGINNER')
   level: { type: String, required: true, uppercase: true, trim: true },
   duration: { type: Number, required: true },
   totalQuestions: { type: Number, required: true, default: 0 },

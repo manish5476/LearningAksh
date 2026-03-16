@@ -4,16 +4,7 @@ const catchAsync = require('../utils/catchAsync');
 const mongoose = require('mongoose');
 
 exports.getPlatformStats = catchAsync(async (req, res, next) => {
-  // Get basic counts
-  const [
-    totalUsers,
-    totalStudents,
-    totalInstructors,
-    totalCourses,
-    totalEnrollments,
-    totalRevenue,
-    totalReviews
-  ] = await Promise.all([
+  const [totalUsers, totalStudents, totalInstructors, totalCourses, totalEnrollments, totalRevenue, totalReviews] = await Promise.all([
     User.countDocuments({ isDeleted: { $ne: true } }),
     User.countDocuments({ role: 'student', isDeleted: { $ne: true } }),
     User.countDocuments({ role: 'instructor', isDeleted: { $ne: true } }),
@@ -28,7 +19,7 @@ exports.getPlatformStats = catchAsync(async (req, res, next) => {
 
   // Get monthly trends
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  
+
   const [newUsers, newEnrollments, newCourses] = await Promise.all([
     User.countDocuments({ createdAt: { $gte: thirtyDaysAgo } }),
     Enrollment.countDocuments({ enrolledAt: { $gte: thirtyDaysAgo } }),
@@ -61,7 +52,7 @@ exports.getInstructorAnalytics = catchAsync(async (req, res, next) => {
   const instructorId = req.params.instructorId || req.user.id;
 
   // Get instructor's courses
-  const courses = await Course.find({ 
+  const courses = await Course.find({
     instructor: instructorId,
     isDeleted: { $ne: true }
   }).select('_id title price totalEnrollments totalReviews rating');
@@ -89,13 +80,13 @@ exports.getInstructorAnalytics = catchAsync(async (req, res, next) => {
 
   // Calculate completion rate
   const completedCourses = progress.filter(p => p.isCompleted).length;
-  const completionRate = progress.length > 0 
-    ? (completedCourses / progress.length) * 100 
+  const completionRate = progress.length > 0
+    ? (completedCourses / progress.length) * 100
     : 0;
 
   // Course performance
   const coursePerformance = courses.map(course => {
-    const courseEnrollments = enrollments.filter(e => 
+    const courseEnrollments = enrollments.filter(e =>
       e.course.toString() === course._id.toString()
     ).length;
 
@@ -111,8 +102,8 @@ exports.getInstructorAnalytics = catchAsync(async (req, res, next) => {
       revenue: courseRevenue,
       rating: course.rating,
       reviews: course.totalReviews,
-      completionRate: course.totalEnrollments > 0 
-        ? (course.totalEnrollments / courseEnrollments) * 100 
+      completionRate: course.totalEnrollments > 0
+        ? (course.totalEnrollments / courseEnrollments) * 100
         : 0
     };
   });
@@ -129,7 +120,7 @@ exports.getInstructorAnalytics = catchAsync(async (req, res, next) => {
       },
       coursePerformance,
       recentActivity: {
-        last30DaysEnrollments: enrollments.filter(e => 
+        last30DaysEnrollments: enrollments.filter(e =>
           new Date(e.enrolledAt) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
         ).length,
         last30DaysRevenue: payments
@@ -144,9 +135,9 @@ exports.getStudentAnalytics = catchAsync(async (req, res, next) => {
   const studentId = req.params.studentId || req.user.id;
 
   // Get student's enrollments
-  const enrollments = await Enrollment.find({ 
+  const enrollments = await Enrollment.find({
     student: studentId,
-    isActive: true 
+    isActive: true
   }).populate('course');
 
   // Get progress
@@ -168,7 +159,7 @@ exports.getStudentAnalytics = catchAsync(async (req, res, next) => {
 
   // Course breakdown
   const courseBreakdown = enrollments.map(e => {
-    const courseProgress = progress.find(p => 
+    const courseProgress = progress.find(p =>
       p.course.toString() === e.course._id.toString()
     );
 
@@ -195,7 +186,7 @@ exports.getStudentAnalytics = catchAsync(async (req, res, next) => {
   if (sortedProgress.length > 0) {
     let lastDate = sortedProgress[0];
     currentStreak = 1;
-    
+
     for (let i = 1; i < sortedProgress.length; i++) {
       const diffDays = Math.round((lastDate - sortedProgress[i]) / (1000 * 60 * 60 * 24));
       if (diffDays === 1) {
@@ -217,7 +208,7 @@ exports.getStudentAnalytics = catchAsync(async (req, res, next) => {
         totalCertificates: certificates.length,
         totalTimeSpent: Math.round(totalTimeSpent / 60), // Convert to hours
         currentStreak,
-        completionRate: totalCourses > 0 
+        completionRate: totalCourses > 0
           ? ((completedCourses / totalCourses) * 100).toFixed(1) + '%'
           : '0%'
       },
@@ -236,7 +227,7 @@ exports.getRevenueAnalytics = catchAsync(async (req, res, next) => {
   const { startDate, endDate, groupBy = 'day' } = req.query;
 
   const matchStage = { status: 'success' };
-  
+
   if (startDate || endDate) {
     matchStage.createdAt = {};
     if (startDate) matchStage.createdAt.$gte = new Date(startDate);
@@ -245,7 +236,7 @@ exports.getRevenueAnalytics = catchAsync(async (req, res, next) => {
 
   // Group by time period
   let groupStage;
-  switch(groupBy) {
+  switch (groupBy) {
     case 'hour':
       groupStage = {
         year: { $year: '$createdAt' },
@@ -295,7 +286,7 @@ exports.getRevenueAnalytics = catchAsync(async (req, res, next) => {
   const formattedData = revenueByPeriod.map(item => {
     const period = item._id;
     let label;
-    
+
     if (groupBy === 'hour') {
       label = `${period.year}-${period.month}-${period.day} ${period.hour}:00`;
     } else if (groupBy === 'day') {
