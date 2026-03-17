@@ -4,7 +4,8 @@ const mongoose = require('mongoose');
 const quizQuestionSchema = new mongoose.Schema({
   quiz: { type: mongoose.Schema.Types.ObjectId, ref: 'Quiz', required: true },
   question: { type: String, required: true },
-  type: { type: String, enum: ['multiple-choice', 'true-false', 'short-answer', 'essay'], required: true },
+  // ✅ FIX: Removed strict enum, added uppercase/trim for Master code compatibility
+  type: { type: String, required: true, uppercase: true, trim: true },
   options: [{ text: String, isCorrect: Boolean }],
   correctAnswer: String,
   points: { type: Number, default: 1 },
@@ -40,9 +41,9 @@ const mockTestQuestionSchema = new mongoose.Schema({
 const mockTestSchema = new mongoose.Schema({
   title: { type: String, required: true },
   description: String,
-  category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
+  category: { type: mongoose.Schema.Types.ObjectId, ref: 'Master', required: true },
   instructor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  level: { type: String, enum: ['beginner', 'intermediate', 'advanced'], required: true },
+  level: { type: String, required: true, uppercase: true, trim: true },
   duration: { type: Number, required: true },
   totalQuestions: { type: Number, required: true, default: 0 },
   totalMarks: { type: Number, required: true, default: 0 },
@@ -75,18 +76,21 @@ const mockTestAttemptSchema = new mongoose.Schema({
   percentage: { type: Number, default: 0 },
   rank: Number,
   totalStudents: Number, // snapshot at time of completion
+  // Status is internal application state, so it keeps its enum
   status: { type: String, enum: ['started', 'in-progress', 'completed', 'abandoned'], default: 'started' },
   isPassed: Boolean,
   feedback: String
 }, { timestamps: true });
 
+// Indexes
 mockTestSchema.index({ title: 'text', description: 'text' });
 mockTestAttemptSchema.index({ mockTest: 1, student: 1 });
 
+// ✅ FIX: Added safety checks to prevent OverwriteModelError during hot-reloads
 module.exports = {
-  Quiz: mongoose.model('Quiz', quizSchema),
-  QuizQuestion: mongoose.model('QuizQuestion', quizQuestionSchema),
-  MockTest: mongoose.model('MockTest', mockTestSchema),
-  MockTestQuestion: mongoose.model('MockTestQuestion', mockTestQuestionSchema),
-  MockTestAttempt: mongoose.model('MockTestAttempt', mockTestAttemptSchema)
+  Quiz: mongoose.models.Quiz || mongoose.model('Quiz', quizSchema),
+  QuizQuestion: mongoose.models.QuizQuestion || mongoose.model('QuizQuestion', quizQuestionSchema),
+  MockTest: mongoose.models.MockTest || mongoose.model('MockTest', mockTestSchema),
+  MockTestQuestion: mongoose.models.MockTestQuestion || mongoose.model('MockTestQuestion', mockTestQuestionSchema),
+  MockTestAttempt: mongoose.models.MockTestAttempt || mongoose.model('MockTestAttempt', mockTestAttemptSchema)
 };

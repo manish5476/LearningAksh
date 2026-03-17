@@ -5,9 +5,9 @@ const couponSchema = new mongoose.Schema({
   code: { type: String, required: true, unique: true, uppercase: true, trim: true },
   description: String,
   discountType: { type: String, enum: ['percentage', 'fixed_amount', 'free'], required: true },
-  discountValue: { type: Number, required: true }, // e.g., 20 for 20%, or 15 for $15 off
-  validForCourses: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course' }], // If empty, applies platform-wide
-  instructor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // If created by an instructor
+  discountValue: { type: Number, required: true }, 
+  validForCourses: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Course' }],
+  instructor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, 
   startDate: { type: Date, default: Date.now },
   expiryDate: { type: Date, required: true },
   usageLimit: { type: Number, default: null }, // Max number of times this coupon can be used total

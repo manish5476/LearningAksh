@@ -7,25 +7,30 @@ const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
 const sendEmail = require('../utils/email');
 
-const signToken = id => {
+/**
+ * Generates a JWT token for the user
+ */
+const signToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN
+    expiresIn: process.env.JWT_EXPIRES_IN,
   });
 };
 
+/**
+ * Formats and sends the JWT via cookie and JSON response
+ */
 const createSendToken = (user, statusCode, res) => {
   const token = signToken(user._id);
-  
-  // Remove password from output
+
+  // Remove password from output for security
   user.password = undefined;
 
-  // Cookie options
   const cookieOptions = {
     expires: new Date(
       Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000
     ),
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production'
+    secure: process.env.NODE_ENV === 'production',
   };
 
   res.cookie('jwt', token, cookieOptions);
@@ -34,34 +39,42 @@ const createSendToken = (user, statusCode, res) => {
     status: 'success',
     token,
     data: {
-      user
-    }
+      user,
+    },
   });
 };
 
+// ==================== AUTH ACTIONS ====================
+
 exports.signup = catchAsync(async (req, res, next) => {
-  // 1) Check if passwords match manually (Optional now that Mongoose does it, but good for fast failing)
+  // 1) Manual validation check (Fail fast before hitting DB)
   if (req.body.password !== req.body.confirmPassword) {
     return next(new AppError('Passwords do not match!', 400));
   }
 
-  // 2) Check if user already exists
+  // 2) Check if user exists
   const existingUser = await User.findOne({ email: req.body.email });
   if (existingUser) {
     return next(new AppError('User already exists with this email', 400));
   }
 
-  // 3) STRICTLY control the role (Prevent 'admin' injection)
-  const allowedRoles = ['student', 'instructor'];
-  const assignedRole = allowedRoles.includes(req.body.role) ? req.body.role : 'student';
+  // 3) STATIC ROLE LOGIC
+  // Convert to lowercase to match the static enum in User model
+  let assignedRole = req.body.role ? req.body.role.toLowerCase().trim() : 'student';
+
+  // Security: Prevent unauthorized 'admin' registration
+  if (assignedRole === 'admin') {
+    return next(new AppError('Unauthorized: Registration for Admin role is restricted.', 403));
+  }
 
   // 4) Create user
+  // This will trigger the User schema validation (enum check)
   const newUser = await User.create({
     firstName: req.body.firstName,
     lastName: req.body.lastName,
     email: req.body.email,
     password: req.body.password,
-    confirmPassword: req.body.confirmPassword, // ✅ ADDED BACK: Mongoose needs this to run the schema validation
+    confirmPassword: req.body.confirmPassword, 
     role: assignedRole,
     gender: req.body.gender,
     phoneNumber: req.body.phoneNumber
@@ -81,11 +94,11 @@ exports.signup = catchAsync(async (req, res, next) => {
         interests: req.body.interests || []
       });
     }
-  } 
-  catch (err) {
-    console.log("PROFILE CREATION ERROR:", err); // 👈 ADD THIS LINE
+  } catch (err) {
+    // Rollback: delete the user if profile creation fails to prevent "orphaned" users
+    console.error("CRITICAL: Profile creation failed during signup:", err);
     await User.findByIdAndDelete(newUser._id);
-    return next(new AppError('Failed to create user profile. Please try again.', 500));
+    return next(new AppError('Account creation failed during profile setup. Please try again.', 500));
   }
 
   createSendToken(newUser, 201, res);
@@ -94,24 +107,21 @@ exports.signup = catchAsync(async (req, res, next) => {
 exports.login = catchAsync(async (req, res, next) => {
   const { email, password } = req.body;
 
-  // Check if email and password exist
   if (!email || !password) {
     return next(new AppError('Please provide email and password!', 400));
   }
 
-  // Check if user exists && password is correct
+  // Include password field which is hidden by default in schema
   const user = await User.findOne({ email }).select('+password');
 
   if (!user || !(await user.correctPassword(password, user.password))) {
     return next(new AppError('Incorrect email or password', 401));
   }
 
-  // Check if user is active
   if (!user.isActive || user.isDeleted) {
-    return next(new AppError('Your account has been deactivated', 401));
+    return next(new AppError('Your account has been deactivated or deleted', 401));
   }
 
-  // Update last login
   user.lastLogin = Date.now();
   await user.save({ validateBeforeSave: false });
 
@@ -126,9 +136,10 @@ exports.logout = (req, res) => {
   res.status(200).json({ status: 'success' });
 };
 
+// ==================== MIDDLEWARE ====================
+
 exports.protect = catchAsync(async (req, res, next) => {
   let token;
-
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     token = req.headers.authorization.split(' ')[1];
   } else if (req.cookies && req.cookies.jwt) {
@@ -136,24 +147,20 @@ exports.protect = catchAsync(async (req, res, next) => {
   }
 
   if (!token) {
-    return next(new AppError('You are not logged in! Please log in to get access.', 401));
+    return next(new AppError('You are not logged in!', 401));
   }
 
-  // Verify token
   const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
 
-  // Check if user still exists
   const currentUser = await User.findById(decoded.id);
   if (!currentUser) {
     return next(new AppError('The user belonging to this token no longer exists.', 401));
   }
 
-  // Check if user changed password after the token was issued
   if (currentUser.changedPasswordAfter && currentUser.changedPasswordAfter(decoded.iat)) {
     return next(new AppError('User recently changed password! Please log in again.', 401));
   }
 
-  // Grant access
   req.user = currentUser;
   next();
 });
@@ -161,11 +168,13 @@ exports.protect = catchAsync(async (req, res, next) => {
 exports.restrictTo = (...roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {
-      return next(new AppError('You do not have permission to perform this action', 403));
+      return next(new AppError('Permission denied for this action.', 403));
     }
     next();
   };
 };
+
+// ==================== PASSWORD MANAGEMENT ====================
 
 exports.forgotPassword = catchAsync(async (req, res, next) => {
   const user = await User.findOne({ email: req.body.email });
@@ -177,38 +186,26 @@ exports.forgotPassword = catchAsync(async (req, res, next) => {
   await user.save({ validateBeforeSave: false });
 
   const resetURL = `${req.protocol}://${req.get('host')}/api/v1/users/resetPassword/${resetToken}`;
-
-  const message = `Forgot your password? Submit a PATCH request with your new password and confirmPassword to: ${resetURL}.\nIf you didn\'t forget your password, please ignore this email!`;
+  const message = `Forgot your password? Submit a PATCH request with your new password to: ${resetURL}`;
 
   try {
     await sendEmail({
       email: user.email,
-      subject: 'Your password reset token (valid for 10 min)',
+      subject: 'Password Reset Token (Valid for 10 min)',
       message
     });
 
-    res.status(200).json({
-      status: 'success',
-      message: 'Token sent to email!'
-    });
+    res.status(200).json({ status: 'success', message: 'Token sent to email!' });
   } catch (err) {
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
     await user.save({ validateBeforeSave: false });
-
-    return next(new AppError('There was an error sending the email. Try again later!', 500));
+    return next(new AppError('Email delivery failed. Try again later.', 500));
   }
 });
 
 exports.resetPassword = catchAsync(async (req, res, next) => {
-  if (req.body.password !== req.body.confirmPassword) {
-    return next(new AppError('Passwords do not match!', 400));
-  }
-
-  const hashedToken = crypto
-    .createHash('sha256')
-    .update(req.params.token)
-    .digest('hex');
+  const hashedToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
 
   const user = await User.findOne({
     passwordResetToken: hashedToken,
@@ -220,7 +217,7 @@ exports.resetPassword = catchAsync(async (req, res, next) => {
   }
 
   user.password = req.body.password;
-  user.confirmPassword = req.body.confirmPassword; // ✅ ADDED: Required for Mongoose validation
+  user.confirmPassword = req.body.confirmPassword;
   user.passwordResetToken = undefined;
   user.passwordResetExpires = undefined;
   await user.save();
@@ -229,22 +226,19 @@ exports.resetPassword = catchAsync(async (req, res, next) => {
 });
 
 exports.updatePassword = catchAsync(async (req, res, next) => {
-  if (req.body.password !== req.body.confirmPassword) {
-    return next(new AppError('New passwords do not match!', 400));
-  }
-
   const user = await User.findById(req.user.id).select('+password');
 
   if (!(await user.correctPassword(req.body.passwordCurrent, user.password))) {
-    return next(new AppError('Your current password is wrong.', 401));
+    return next(new AppError('Current password is incorrect.', 401));
   }
 
   user.password = req.body.password;
-  user.confirmPassword = req.body.confirmPassword; // ✅ ADDED: Required for Mongoose validation
+  user.confirmPassword = req.body.confirmPassword;
   await user.save();
 
   createSendToken(user, 200, res);
 });
+
 
 // const jwt = require('jsonwebtoken');
 // const { promisify } = require('util');
@@ -288,7 +282,7 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
 // };
 
 // exports.signup = catchAsync(async (req, res, next) => {
-//   console.log("WHAT EXPRESS SEES:", req.body);
+//   // 1) Check if passwords match manually (Optional now that Mongoose does it, but good for fast failing)
 //   if (req.body.password !== req.body.confirmPassword) {
 //     return next(new AppError('Passwords do not match!', 400));
 //   }
@@ -303,13 +297,13 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
 //   const allowedRoles = ['student', 'instructor'];
 //   const assignedRole = allowedRoles.includes(req.body.role) ? req.body.role : 'student';
 
-//   // 4) Create user (Explicitly defining fields prevents mass-assignment hacks)
+//   // 4) Create user
 //   const newUser = await User.create({
 //     firstName: req.body.firstName,
 //     lastName: req.body.lastName,
 //     email: req.body.email,
 //     password: req.body.password,
-//     // confirmPassword: req.body.confirmPassword,
+//     confirmPassword: req.body.confirmPassword, // ✅ ADDED BACK: Mongoose needs this to run the schema validation
 //     role: assignedRole,
 //     gender: req.body.gender,
 //     phoneNumber: req.body.phoneNumber
@@ -329,8 +323,9 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
 //         interests: req.body.interests || []
 //       });
 //     }
-//   } catch (err) {
-//     // If profile creation fails, delete the orphaned user and throw error
+//   } 
+//   catch (err) {
+//     console.log("PROFILE CREATION ERROR:", err); // 👈 ADD THIS LINE
 //     await User.findByIdAndDelete(newUser._id);
 //     return next(new AppError('Failed to create user profile. Please try again.', 500));
 //   }
@@ -448,7 +443,6 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
 // });
 
 // exports.resetPassword = catchAsync(async (req, res, next) => {
-//   // Manually verify password confirmation
 //   if (req.body.password !== req.body.confirmPassword) {
 //     return next(new AppError('Passwords do not match!', 400));
 //   }
@@ -468,6 +462,7 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
 //   }
 
 //   user.password = req.body.password;
+//   user.confirmPassword = req.body.confirmPassword; // ✅ ADDED: Required for Mongoose validation
 //   user.passwordResetToken = undefined;
 //   user.passwordResetExpires = undefined;
 //   await user.save();
@@ -476,7 +471,6 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
 // });
 
 // exports.updatePassword = catchAsync(async (req, res, next) => {
-//   // Manually verify password confirmation
 //   if (req.body.password !== req.body.confirmPassword) {
 //     return next(new AppError('New passwords do not match!', 400));
 //   }
@@ -488,7 +482,255 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
 //   }
 
 //   user.password = req.body.password;
+//   user.confirmPassword = req.body.confirmPassword; // ✅ ADDED: Required for Mongoose validation
 //   await user.save();
 
 //   createSendToken(user, 200, res);
 // });
+
+// // const jwt = require('jsonwebtoken');
+// // const { promisify } = require('util');
+// // const crypto = require('crypto');
+
+// // const { User, InstructorProfile, StudentProfile } = require('../models');
+// // const AppError = require('../utils/appError');
+// // const catchAsync = require('../utils/catchAsync');
+// // const sendEmail = require('../utils/email');
+
+// // const signToken = id => {
+// //   return jwt.sign({ id }, process.env.JWT_SECRET, {
+// //     expiresIn: process.env.JWT_EXPIRES_IN
+// //   });
+// // };
+
+// // const createSendToken = (user, statusCode, res) => {
+// //   const token = signToken(user._id);
+  
+// //   // Remove password from output
+// //   user.password = undefined;
+
+// //   // Cookie options
+// //   const cookieOptions = {
+// //     expires: new Date(
+// //       Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000
+// //     ),
+// //     httpOnly: true,
+// //     secure: process.env.NODE_ENV === 'production'
+// //   };
+
+// //   res.cookie('jwt', token, cookieOptions);
+
+// //   res.status(statusCode).json({
+// //     status: 'success',
+// //     token,
+// //     data: {
+// //       user
+// //     }
+// //   });
+// // };
+
+// // exports.signup = catchAsync(async (req, res, next) => {
+// //   console.log("WHAT EXPRESS SEES:", req.body);
+// //   if (req.body.password !== req.body.confirmPassword) {
+// //     return next(new AppError('Passwords do not match!', 400));
+// //   }
+
+// //   // 2) Check if user already exists
+// //   const existingUser = await User.findOne({ email: req.body.email });
+// //   if (existingUser) {
+// //     return next(new AppError('User already exists with this email', 400));
+// //   }
+
+// //   // 3) STRICTLY control the role (Prevent 'admin' injection)
+// //   const allowedRoles = ['student', 'instructor'];
+// //   const assignedRole = allowedRoles.includes(req.body.role) ? req.body.role : 'student';
+
+// //   // 4) Create user (Explicitly defining fields prevents mass-assignment hacks)
+// //   const newUser = await User.create({
+// //     firstName: req.body.firstName,
+// //     lastName: req.body.lastName,
+// //     email: req.body.email,
+// //     password: req.body.password,
+// //     // confirmPassword: req.body.confirmPassword,
+// //     role: assignedRole,
+// //     gender: req.body.gender,
+// //     phoneNumber: req.body.phoneNumber
+// //   });
+
+// //   try {
+// //     // 5) Create role-specific profile
+// //     if (newUser.role === 'instructor') {
+// //       await InstructorProfile.create({
+// //         user: newUser._id,
+// //         expertise: req.body.expertise || [],
+// //         bio: req.body.bio || ''
+// //       });
+// //     } else if (newUser.role === 'student') {
+// //       await StudentProfile.create({
+// //         user: newUser._id,
+// //         interests: req.body.interests || []
+// //       });
+// //     }
+// //   } catch (err) {
+// //     // If profile creation fails, delete the orphaned user and throw error
+// //     await User.findByIdAndDelete(newUser._id);
+// //     return next(new AppError('Failed to create user profile. Please try again.', 500));
+// //   }
+
+// //   createSendToken(newUser, 201, res);
+// // });
+
+// // exports.login = catchAsync(async (req, res, next) => {
+// //   const { email, password } = req.body;
+
+// //   // Check if email and password exist
+// //   if (!email || !password) {
+// //     return next(new AppError('Please provide email and password!', 400));
+// //   }
+
+// //   // Check if user exists && password is correct
+// //   const user = await User.findOne({ email }).select('+password');
+
+// //   if (!user || !(await user.correctPassword(password, user.password))) {
+// //     return next(new AppError('Incorrect email or password', 401));
+// //   }
+
+// //   // Check if user is active
+// //   if (!user.isActive || user.isDeleted) {
+// //     return next(new AppError('Your account has been deactivated', 401));
+// //   }
+
+// //   // Update last login
+// //   user.lastLogin = Date.now();
+// //   await user.save({ validateBeforeSave: false });
+
+// //   createSendToken(user, 200, res);
+// // });
+
+// // exports.logout = (req, res) => {
+// //   res.cookie('jwt', 'loggedout', {
+// //     expires: new Date(Date.now() + 10 * 1000),
+// //     httpOnly: true
+// //   });
+// //   res.status(200).json({ status: 'success' });
+// // };
+
+// // exports.protect = catchAsync(async (req, res, next) => {
+// //   let token;
+
+// //   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+// //     token = req.headers.authorization.split(' ')[1];
+// //   } else if (req.cookies && req.cookies.jwt) {
+// //     token = req.cookies.jwt;
+// //   }
+
+// //   if (!token) {
+// //     return next(new AppError('You are not logged in! Please log in to get access.', 401));
+// //   }
+
+// //   // Verify token
+// //   const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
+
+// //   // Check if user still exists
+// //   const currentUser = await User.findById(decoded.id);
+// //   if (!currentUser) {
+// //     return next(new AppError('The user belonging to this token no longer exists.', 401));
+// //   }
+
+// //   // Check if user changed password after the token was issued
+// //   if (currentUser.changedPasswordAfter && currentUser.changedPasswordAfter(decoded.iat)) {
+// //     return next(new AppError('User recently changed password! Please log in again.', 401));
+// //   }
+
+// //   // Grant access
+// //   req.user = currentUser;
+// //   next();
+// // });
+
+// // exports.restrictTo = (...roles) => {
+// //   return (req, res, next) => {
+// //     if (!roles.includes(req.user.role)) {
+// //       return next(new AppError('You do not have permission to perform this action', 403));
+// //     }
+// //     next();
+// //   };
+// // };
+
+// // exports.forgotPassword = catchAsync(async (req, res, next) => {
+// //   const user = await User.findOne({ email: req.body.email });
+// //   if (!user) {
+// //     return next(new AppError('There is no user with that email address.', 404));
+// //   }
+
+// //   const resetToken = user.createPasswordResetToken();
+// //   await user.save({ validateBeforeSave: false });
+
+// //   const resetURL = `${req.protocol}://${req.get('host')}/api/v1/users/resetPassword/${resetToken}`;
+
+// //   const message = `Forgot your password? Submit a PATCH request with your new password and confirmPassword to: ${resetURL}.\nIf you didn\'t forget your password, please ignore this email!`;
+
+// //   try {
+// //     await sendEmail({
+// //       email: user.email,
+// //       subject: 'Your password reset token (valid for 10 min)',
+// //       message
+// //     });
+
+// //     res.status(200).json({
+// //       status: 'success',
+// //       message: 'Token sent to email!'
+// //     });
+// //   } catch (err) {
+// //     user.passwordResetToken = undefined;
+// //     user.passwordResetExpires = undefined;
+// //     await user.save({ validateBeforeSave: false });
+
+// //     return next(new AppError('There was an error sending the email. Try again later!', 500));
+// //   }
+// // });
+
+// // exports.resetPassword = catchAsync(async (req, res, next) => {
+// //   // Manually verify password confirmation
+// //   if (req.body.password !== req.body.confirmPassword) {
+// //     return next(new AppError('Passwords do not match!', 400));
+// //   }
+
+// //   const hashedToken = crypto
+// //     .createHash('sha256')
+// //     .update(req.params.token)
+// //     .digest('hex');
+
+// //   const user = await User.findOne({
+// //     passwordResetToken: hashedToken,
+// //     passwordResetExpires: { $gt: Date.now() }
+// //   });
+
+// //   if (!user) {
+// //     return next(new AppError('Token is invalid or has expired', 400));
+// //   }
+
+// //   user.password = req.body.password;
+// //   user.passwordResetToken = undefined;
+// //   user.passwordResetExpires = undefined;
+// //   await user.save();
+
+// //   createSendToken(user, 200, res);
+// // });
+
+// // exports.updatePassword = catchAsync(async (req, res, next) => {
+// //   // Manually verify password confirmation
+// //   if (req.body.password !== req.body.confirmPassword) {
+// //     return next(new AppError('New passwords do not match!', 400));
+// //   }
+
+// //   const user = await User.findById(req.user.id).select('+password');
+
+// //   if (!(await user.correctPassword(req.body.passwordCurrent, user.password))) {
+// //     return next(new AppError('Your current password is wrong.', 401));
+// //   }
+
+// //   user.password = req.body.password;
+// //   await user.save();
+
+// //   createSendToken(user, 200, res);
+// // });

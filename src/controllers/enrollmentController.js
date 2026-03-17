@@ -142,12 +142,40 @@ exports.bulkEnroll = catchAsync(async (req, res, next) => {
 //     data: { enrollments: enrollmentsWithFullProgress }
 //   });
 // });
+// Make sure you have this imported at the top of your file!
+// const Course = require('../models/courseModel'); 
 
 exports.checkEnrollment = catchAsync(async (req, res, next) => {
-  const enrollment = await Enrollment.findOne({ student: req.user.id, course: req.params.courseId, isActive: true })
-    .populate('course', 'title instructor');
-  res.status(200).json({ status: 'success', data: { isEnrolled: !!enrollment, enrollment: enrollment || undefined } });
+  const course = await Course.findOne({ slug: req.params.courseId });
+  if (!course) {
+    return res.status(200).json({ 
+      status: 'success', 
+      data: { 
+        isEnrolled: false, 
+        enrollment: undefined 
+      } 
+    });
+  }
+
+  const enrollment = await Enrollment.findOne({ 
+    student: req.user.id, 
+    course: course._id,
+    isActive: true 
+  }).populate('course', 'title instructor');
+
+  res.status(200).json({ 
+    status: 'success', 
+    data: { 
+      isEnrolled: !!enrollment, 
+      enrollment: enrollment || undefined 
+    } 
+  });
 });
+// exports.checkEnrollment = catchAsync(async (req, res, next) => {
+//   const enrollment = await Enrollment.findOne({ student: req.user.id, course: req.params.courseId, isActive: true })
+//     .populate('course', 'title instructor');
+//   res.status(200).json({ status: 'success', data: { isEnrolled: !!enrollment, enrollment: enrollment || undefined } });
+// });
 
 exports.getEnrollmentProgress = catchAsync(async (req, res, next) => {
   const progress = await ProgressTracking.findOne({ student: req.user.id, course: req.params.courseId });

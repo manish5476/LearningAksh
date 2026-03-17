@@ -22,7 +22,7 @@ const queueMonitor = require('./jobs/queueMonitor');
 const { protect, restrictTo } = require('./middlewares/authMiddleware');
 
 const app = express();
-
+const initializeMasters = require('./utils/initializeMasters');
 // ============================================
 // PROMETHEUS METRICS COLLECTION
 // ============================================
@@ -122,6 +122,7 @@ app.use(fileUpload({
 // DEVELOPMENT LOGGING
 // ============================================
 if (process.env.NODE_ENV === 'development') {
+  
   app.use(morgan('dev', {
     skip: (req, res) => res.statusCode < 400,
     stream: { write: message => logger.http(message.trim()) }
@@ -168,19 +169,20 @@ app.use('/api/v1/upload', uploadLimiter);
 // BODY PARSERS (JSON & URL-Encoded)
 // ============================================
 // Fixed: JSON limit dropped to 10kb to prevent Event Loop DOS attacks
-app.use(express.json({ 
-  limit: '10kb', 
-  verify: (req, res, buf) => {
-    req.rawBody = buf.toString();
-  }
-}));
+// app.use(express.json({ 
+//   limit: '50mb', 
+//   verify: (req, res, buf) => {
+//     req.rawBody = buf.toString();
+//   }
+// }));
 
-app.use(express.urlencoded({ 
-  extended: true, 
-  limit: '10kb',
-  parameterLimit: 1000
-}));
-
+// app.use(express.urlencoded({ 
+//   extended: true, 
+//   limit: '10kb',
+//   parameterLimit: 1000
+// }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // ============================================
 // DATA SANITIZATION
 // ============================================

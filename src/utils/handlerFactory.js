@@ -12,14 +12,25 @@ exports.getAll = (Model, options = {}) =>
   catchAsync(async (req, res, next) => {
     let baseFilter = { ...(req.filter || {}) };
 
+    // --- ADD THIS BLOCK ---
+    let queryObj = { ...req.query };
+    if (req.query.params) {
+      try {
+        queryObj = JSON.parse(req.query.params);
+      } catch (err) {
+        return next(new AppError('Invalid JSON format in params', 400));
+      }
+    }
+    // ----------------------
+
     if (Model.schema.path("isDeleted")) baseFilter.isDeleted = { $ne: true };
 
-    const features = new ApiFeatures(Model.find(baseFilter), req.query)
+    // Change req.query to queryObj here
+    const features = new ApiFeatures(Model.find(baseFilter), queryObj) 
       .filter()
       .search(options.searchFields || [])
       .sort()
       .limitFields();
-
     if (req.query.cursor) features.cursorPaginate();
     else features.paginate();
 
@@ -119,14 +130,32 @@ exports.deleteOne = (Model) =>
 /* =======================================================
 BULK CREATE
 ======================================================= */
+// exports.bulkCreate = (Model) =>
+//   catchAsync(async (req, res, next) => {
+//     if (!Array.isArray(req.body)) return next(new AppError("Body must be an array", 400));
+//     const docs = req.body.map(item => ({ ...item, ...(req.filter || {}) }));
+//     const result = await Model.insertMany(docs, { ordered: false });
+//     res.status(201).json({ status: "success", results: result.length, data: result });
+//   });
 exports.bulkCreate = (Model) =>
   catchAsync(async (req, res, next) => {
     if (!Array.isArray(req.body)) return next(new AppError("Body must be an array", 400));
-    const docs = req.body.map(item => ({ ...item, ...(req.filter || {}) }));
-    const result = await Model.insertMany(docs, { ordered: false });
-    res.status(201).json({ status: "success", results: result.length, data: result });
+    
+    const docs = req.body.map(item => ({ 
+      ...item, 
+      primaryInstructor: req.user._id,  // Add this!
+      ...(req.filter || {}) 
+    }));
+    
+    // CHANGE THIS: ordered: true will STOP at first error and throw
+    const result = await Model.insertMany(docs, { ordered: true });
+    
+    res.status(201).json({ 
+      status: "success", 
+      results: result.length, 
+      data: result 
+    });
   });
-
 /* =======================================================
 BULK UPDATE
 ======================================================= */
@@ -212,4 +241,32 @@ exports.count = (Model) =>
     if (Model.schema.path("isDeleted")) filter.isDeleted = { $ne: true };
     const count = await Model.countDocuments(filter);
     res.status(200).json({ status: "success", data: { count } });
+  });
+
+/* =======================================================
+GET SINGLE DOCUMENT BY SLUG (For Public/SEO Routes)
+======================================================= */
+exports.getOneBySlug = (Model, options = {}) =>
+  catchAsync(async (req, res, next) => {
+    // 1. Build the filter using the slug from the URL parameters
+    let filter = { slug: req.params.slug, ...(req.filter || {}) };
+
+    // 2. Exclude soft-deleted documents if the schema supports it
+    if (Model.schema.path("isDeleted")) filter.isDeleted = { $ne: true };
+
+    // 3. Build the query
+    let query = Model.findOne(filter);
+
+    // 4. Apply population and lean options
+    if (options.populate) {
+      options.populate.forEach(pop => { query = query.populate(pop); });
+    }
+    if (options.lean !== false) query = query.lean();
+
+    // 5. Execute query
+    const doc = await query;
+    if (!doc) return next(new AppError("No document found with that slug", 404));
+
+    // 6. Send response
+    res.status(200).json({ status: "success", data: doc });
   });
