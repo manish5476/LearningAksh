@@ -1,13 +1,188 @@
+// const mongoose = require('mongoose');
+// const { nanoid } = require('nanoid');
+
+// // ==================== HELPERS ====================
+// const slugify = (text) => text.toString().toLowerCase()
+//   .replace(/\s+/g, '-')           // Replace spaces with -
+//   .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
+//   .replace(/\-\-+/g, '-')         // Replace multiple - with single -
+//   .replace(/^-+/, '')             // Trim - from start of text
+//   .replace(/-+$/, '');            // Trim - from end of text
+
+// // ==================== MASTER DATA SCHEMA (SIMPLIFIED) ====================
+// const masterSchema = new mongoose.Schema({
+//   type: { type: String, required: true, trim: true, lowercase: true, index: true },    
+//   name: { type: String, required: true, trim: true },
+//   slug: { type: String, lowercase: true, trim: true, index: true },
+//   code: { type: String, trim: true, uppercase: true },
+//   description: { type: String, trim: true },
+//   imageUrl: { type: String, trim: true },
+//   parentId: { type: mongoose.Schema.Types.ObjectId, ref: "Master", default: null },
+//   isActive: { type: Boolean, default: true },
+//   metadata: {
+//     isFeatured: { type: Boolean, default: false },
+//     sortOrder: { type: Number, default: 0 }
+//   }
+// }, { timestamps: true });
+
+// // Auto-generate slug before saving
+// masterSchema.pre('save', function(next) {
+//   if (this.isModified('name') && !this.slug) {
+//     this.slug = `${slugify(this.name)}-${nanoid(6)}`;
+//   }
+//   next();
+// });
+
+// // Compound index for uniqueness
+// masterSchema.index({ organizationId: 1, type: 1, name: 1 }, { unique: true });
+// masterSchema.index({ organizationId: 1, type: 1, slug: 1 }, { unique: true });
+
+// // Static method mapped to support the existing validators in Course/Lesson schemas
+// masterSchema.statics.validateValue = async function(type, value) {
+//   if (!value) return true;
+//   // Checks if a matching active record exists by code, name, or slug
+//   const exists = await this.exists({ 
+//     type: type.toLowerCase(), 
+//     $or: [{ code: value.toUpperCase() }, { name: value }, { slug: value.toLowerCase() }],
+//     isActive: true 
+//   });
+//   return !!exists;
+// };
+
+
+// // ==================== CATEGORY SCHEMA ====================
+// const categorySchema = new mongoose.Schema({
+//   name: { type: String, required: true, unique: true, trim: true },
+//   description: String,
+//   slug: { type: String, required: true, unique: true },
+//   icon: String,
+//   image: String,
+//   parentCategory: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
+//   isActive: { type: Boolean, default: true },
+//   isDeleted: { type: Boolean, default: false }
+// }, { timestamps: true });
+
+
+// // ==================== COURSE INSTRUCTOR SUB-SCHEMA ====================
+// const courseInstructorSchema = new mongoose.Schema({
+//   instructor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+//   role: { 
+//     type: String,
+//     validate: {
+//       validator: async function(value) {
+//         if (!value) return true; 
+//         const Master = mongoose.model('Master');
+//         return await Master.validateValue('instructor_role', value);
+//       },
+//       message: 'Invalid instructor role'
+//     }
+//   },
+//   permissions: {
+//     canEditCourse: { type: Boolean, default: false },
+//     canManageSections: { type: Boolean, default: false },
+//     canManageLessons: { type: Boolean, default: false },
+//     canManageStudents: { type: Boolean, default: false },
+//     canViewAnalytics: { type: Boolean, default: true },
+//     canGradeAssignments: { type: Boolean, default: false }
+//   },
+//   addedAt: { type: Date, default: Date.now },
+//   addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+//   isActive: { type: Boolean, default: true }
+// }, { _id: false });
+
+
+// // ==================== COURSE SCHEMA ====================
+// const courseSchema = new mongoose.Schema({
+//   title: { type: String, required: true, trim: true },
+//   subtitle: String,
+//   slug: { type: String, required: true, unique: true },
+//   description: { type: String, required: true },
+//   category: { type: mongoose.Schema.Types.ObjectId, ref: 'Master', required: true },
+//   // category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
+//   instructors: [courseInstructorSchema],
+//   primaryInstructor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  
+//   level: { 
+//     type: String,
+//     default: 'beginner',
+//     validate: {
+//       validator: async function(value) {
+//         if (!value) return true;
+//         const Master = mongoose.model('Master');
+//         return await Master.validateValue('course_level', value);
+//       },
+//       message: 'Invalid course level'
+//     }
+//   },
+//   language: { 
+//     type: String,
+//     default: 'English',
+//     validate: {
+//       validator: async function(value) {
+//         if (!value) return true;
+//         const Master = mongoose.model('Master');
+//         return await Master.validateValue('language', value);
+//       },
+//       message: 'Invalid language selection'
+//     }
+//   },
+//   currency: { 
+//     type: String,
+//     default: 'USD',
+//     validate: {
+//       validator: async function(value) {
+//         if (!value) return true;
+//         const Master = mongoose.model('Master');
+//         return await Master.validateValue('currency', value);
+//       },
+//       message: 'Invalid currency selection'
+//     }
+//   },
+  
+//   thumbnail: String,
+//   previewVideo: String,
+//   price: { type: Number, required: true, min: 0 },
+//   discountPrice: { type: Number, min: 0 },
+//   discountStartDate: Date,
+//   discountEndDate: Date,
+//   isFree: { type: Boolean, default: false },
+  
+//   totalDuration: { type: Number, default: 0 },
+//   totalLessons: { type: Number, default: 0 },
+//   totalSections: { type: Number, default: 0 },
+//   rating: { type: Number, min: 0, max: 5, default: 0 },
+//   totalRatings: { type: Number, default: 0 },
+//   totalEnrollments: { type: Number, default: 0 },
+//   totalReviews: { type: Number, default: 0 },
+  
+//   requirements: [String],
+//   whatYouWillLearn: [String],
+//   targetAudience: [String],
+//   tags: [String],
+  
+//   isPublished: { type: Boolean, default: false },
+//   isApproved: { type: Boolean, default: false },
+//   approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+//   approvedAt: Date,
+//   publishedAt: Date,
+//   isDeleted: { type: Boolean, default: false },
+//   deletedAt: { type: Date, default: null }
+// }, { 
+//   timestamps: true,
+//   toJSON: { virtuals: true },
+//   toObject: { virtuals: true }
+// });
+
 const mongoose = require('mongoose');
 const { nanoid } = require('nanoid');
 
 // ==================== HELPERS ====================
 const slugify = (text) => text.toString().toLowerCase()
-  .replace(/\s+/g, '-')           // Replace spaces with -
-  .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
-  .replace(/\-\-+/g, '-')         // Replace multiple - with single -
-  .replace(/^-+/, '')             // Trim - from start of text
-  .replace(/-+$/, '');            // Trim - from end of text
+  .replace(/\s+/g, '-')           
+  .replace(/[^\w\-]+/g, '')       
+  .replace(/\-\-+/g, '-')         
+  .replace(/^-+/, '')             
+  .replace(/-+$/, '');            
 
 // ==================== MASTER DATA SCHEMA (SIMPLIFIED) ====================
 const masterSchema = new mongoose.Schema({
@@ -25,7 +200,6 @@ const masterSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-// Auto-generate slug before saving
 masterSchema.pre('save', function(next) {
   if (this.isModified('name') && !this.slug) {
     this.slug = `${slugify(this.name)}-${nanoid(6)}`;
@@ -33,14 +207,11 @@ masterSchema.pre('save', function(next) {
   next();
 });
 
-// Compound index for uniqueness
 masterSchema.index({ organizationId: 1, type: 1, name: 1 }, { unique: true });
 masterSchema.index({ organizationId: 1, type: 1, slug: 1 }, { unique: true });
 
-// Static method mapped to support the existing validators in Course/Lesson schemas
 masterSchema.statics.validateValue = async function(type, value) {
   if (!value) return true;
-  // Checks if a matching active record exists by code, name, or slug
   const exists = await this.exists({ 
     type: type.toLowerCase(), 
     $or: [{ code: value.toUpperCase() }, { name: value }, { slug: value.toLowerCase() }],
@@ -48,7 +219,6 @@ masterSchema.statics.validateValue = async function(type, value) {
   });
   return !!exists;
 };
-
 
 // ==================== CATEGORY SCHEMA ====================
 const categorySchema = new mongoose.Schema({
@@ -62,21 +232,10 @@ const categorySchema = new mongoose.Schema({
   isDeleted: { type: Boolean, default: false }
 }, { timestamps: true });
 
-
 // ==================== COURSE INSTRUCTOR SUB-SCHEMA ====================
 const courseInstructorSchema = new mongoose.Schema({
   instructor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  role: { 
-    type: String,
-    validate: {
-      validator: async function(value) {
-        if (!value) return true; 
-        const Master = mongoose.model('Master');
-        return await Master.validateValue('instructor_role', value);
-      },
-      message: 'Invalid instructor role'
-    }
-  },
+  role: { type: String }, // Assuming validation is handled or simplified
   permissions: {
     canEditCourse: { type: Boolean, default: false },
     canManageSections: { type: Boolean, default: false },
@@ -90,54 +249,21 @@ const courseInstructorSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true }
 }, { _id: false });
 
-
 // ==================== COURSE SCHEMA ====================
 const courseSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
   subtitle: String,
   slug: { type: String, required: true, unique: true },
   description: { type: String, required: true },
-  category: { type: mongoose.Schema.Types.ObjectId, ref: 'Master', required: true },
-  // category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
+  
+  category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
+  
   instructors: [courseInstructorSchema],
   primaryInstructor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   
-  level: { 
-    type: String,
-    default: 'beginner',
-    validate: {
-      validator: async function(value) {
-        if (!value) return true;
-        const Master = mongoose.model('Master');
-        return await Master.validateValue('course_level', value);
-      },
-      message: 'Invalid course level'
-    }
-  },
-  language: { 
-    type: String,
-    default: 'English',
-    validate: {
-      validator: async function(value) {
-        if (!value) return true;
-        const Master = mongoose.model('Master');
-        return await Master.validateValue('language', value);
-      },
-      message: 'Invalid language selection'
-    }
-  },
-  currency: { 
-    type: String,
-    default: 'USD',
-    validate: {
-      validator: async function(value) {
-        if (!value) return true;
-        const Master = mongoose.model('Master');
-        return await Master.validateValue('currency', value);
-      },
-      message: 'Invalid currency selection'
-    }
-  },
+  level: { type: String, default: 'beginner' },
+  language: { type: String, default: 'English' },
+  currency: { type: String, default: 'USD' },
   
   thumbnail: String,
   previewVideo: String,
@@ -167,11 +293,7 @@ const courseSchema = new mongoose.Schema({
   publishedAt: Date,
   isDeleted: { type: Boolean, default: false },
   deletedAt: { type: Date, default: null }
-}, { 
-  timestamps: true,
-  toJSON: { virtuals: true },
-  toObject: { virtuals: true }
-});
+}, { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } });
 
 
 // ==================== SECTION SCHEMA ====================

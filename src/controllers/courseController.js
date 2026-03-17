@@ -1,5 +1,5 @@
 // controllers/courseController.js
-const { Course,Quiz, Section, Lesson, InstructorInvitation, Master } = require('../models');
+const { Course, Quiz, Section, Lesson, InstructorInvitation, Master, Category } = require('../models');
 const factory = require('../utils/handlerFactory');
 const catchAsync = require('../utils/catchAsync');
 const AppError = require('../utils/appError');
@@ -39,33 +39,60 @@ exports.initializeInstructors = (req, res, next) => {
 exports.validateMasterFields = catchAsync(async (req, res, next) => {
   let { category, level, language, currency } = req.body;
 
-  // 1. Category Check (Using aggressive normalization)
+  // // 1. Category Check (Using aggressive normalization)
+  // if (category) {
+  //   // Console log to debug - check your terminal when you hit Save
+  //   console.log('🔍 Validating Category Input:', category);
+
+  //   let query = { type: 'course_category', isActive: true };
+
+  //   if (mongoose.Types.ObjectId.isValid(category)) {
+  //     // If it looks like an ID, search by ID OR by Code (just in case)
+  //     query.$or = [
+  //       { _id: new mongoose.Types.ObjectId(category) }, 
+  //       { code: String(category).toUpperCase() }
+  //     ];
+  //   } else {
+  //     // If it's just a string (like "DEVELOPMENT"), search by Code
+  //     query.code = String(category).toUpperCase();
+  //   }
+
+  //   const categoryExists = await Master.findOne(query);
+
+  //   if (!categoryExists) {
+  //     console.log('❌ Category NOT found in database for query:', query);
+  //     return next(new AppError(`Invalid category selection.`, 400));
+  //   }
+
+  //   // CRITICAL: Overwrite the request body with the real MongoDB ObjectId
+  //   // This ensures your Course model saves a valid reference
+  //   req.body.category = categoryExists._id;
+  //   console.log('✅ Category validated & normalized to:', categoryExists._id);
+  // }
   if (category) {
-    // Console log to debug - check your terminal when you hit Save
     console.log('🔍 Validating Category Input:', category);
 
-    let query = { type: 'course_category', isActive: true };
+    let query = { isActive: true };
 
     if (mongoose.Types.ObjectId.isValid(category)) {
-      // If it looks like an ID, search by ID OR by Code (just in case)
+      // Search by ID OR by Slug 
       query.$or = [
         { _id: new mongoose.Types.ObjectId(category) }, 
-        { code: String(category).toUpperCase() }
+        { slug: String(category).toLowerCase() }
       ];
     } else {
-      // If it's just a string (like "DEVELOPMENT"), search by Code
-      query.code = String(category).toUpperCase();
+      // If it's just a string, search by Slug
+      query.slug = String(category).toLowerCase();
     }
 
-    const categoryExists = await Master.findOne(query);
+    // ✅ FIX: Querying the Category collection, not Master
+    const categoryExists = await Category.findOne(query);
 
     if (!categoryExists) {
       console.log('❌ Category NOT found in database for query:', query);
       return next(new AppError(`Invalid category selection.`, 400));
     }
 
-    // CRITICAL: Overwrite the request body with the real MongoDB ObjectId
-    // This ensures your Course model saves a valid reference
     req.body.category = categoryExists._id;
     console.log('✅ Category validated & normalized to:', categoryExists._id);
   }
@@ -91,52 +118,6 @@ exports.validateMasterFields = catchAsync(async (req, res, next) => {
   next();
 });
 
-// // Validate master data fields
-// exports.validateMasterFields = catchAsync(async (req, res, next) => {
-//   const { category, level, language, currency } = req.body;
-  
-//   // 1. Category Check (Handles both old IDs, new IDs, and text Codes)
-//   if (category) {
-//     const isObjectId = mongoose.Types.ObjectId.isValid(category);
-    
-//     const categoryExists = await Master.findOne({ 
-//       type: 'course_category',
-//       isActive: true,
-//       $or: [
-//         ...(isObjectId ? [{ _id: category }] : []), // Check by ID if valid
-//         { code: String(category).toUpperCase() }    // Fallback: Check by Code
-//       ]
-//     });
-
-//     if (!categoryExists) {
-//       return next(new AppError(`Invalid category. If you are editing an old course, please re-select the category from the dropdown.`, 400));
-//     }
-    
-//     // Normalize it: ensure we save the actual Master _id to the database
-//     req.body.category = categoryExists._id; 
-//   }
-  
-//   // 2. Level uses a String Code.
-//   if (level) {
-//     const isValid = await Master.validateValue('course_level', String(level).trim());
-//     if (!isValid) return next(new AppError(`Invalid level: ${level}`, 400));
-//   }
-  
-//   // 3. Language uses a String Code.
-//   if (language) {
-//     const isValid = await Master.validateValue('language', String(language).trim());
-//     if (!isValid) return next(new AppError(`Invalid language: ${language}`, 400));
-//   }
-  
-//   // 4. Currency uses a String Code.
-//   if (currency) {
-//     const isValid = await Master.validateValue('currency', String(currency).trim());
-//     if (!isValid) return next(new AppError(`Invalid currency: ${currency}`, 400));
-//   }
-  
-//   next();
-// });
-// Check if user has permission to modify course
 exports.checkCoursePermission = catchAsync(async (req, res, next) => {
   const course = await Course.findById(req.params.id);
   
@@ -722,12 +703,17 @@ exports.getPublishedCourses = catchAsync(async (req, res, next) => {
     .limit(parseInt(req.query.limit) || 50);
   
   // Replaced old `.getMasterValues()` with `.find()` queries for the new flat schema
+  // const [categories, levels, languages] = await Promise.all([
+  //   Master.find({ type: 'course_category', isActive: true }).sort('metadata.sortOrder name'),
+  //   Master.find({ type: 'course_level', isActive: true }).sort('metadata.sortOrder name'),
+  //   Master.find({ type: 'language', isActive: true }).sort('metadata.sortOrder name')
+  // ]);
   const [categories, levels, languages] = await Promise.all([
-    Master.find({ type: 'course_category', isActive: true }).sort('metadata.sortOrder name'),
+    // ✅ FIX: Fetch from Category model directly
+    Category.find({ isActive: true, isDeleted: false }).sort('name'),
     Master.find({ type: 'course_level', isActive: true }).sort('metadata.sortOrder name'),
     Master.find({ type: 'language', isActive: true }).sort('metadata.sortOrder name')
   ]);
-  
   res.status(200).json({
     status: 'success',
     results: courses.length,
@@ -902,14 +888,20 @@ exports.bulkUnpublishCourses = catchAsync(async (req, res, next) => {
 
 // Get all master data for course creation (Updated for flat schema)
 exports.getCourseMasterData = catchAsync(async (req, res, next) => {
+  // const [categories, levels, languages, currencies, instructorRoles] = await Promise.all([
+  //   Master.find({ type: 'course_category', isActive: true }).sort('metadata.sortOrder name'),
+  //   Master.find({ type: 'course_level', isActive: true }).sort('metadata.sortOrder name'),
+  //   Master.find({ type: 'language', isActive: true }).sort('metadata.sortOrder name'),
+  //   Master.find({ type: 'currency', isActive: true }).sort('metadata.sortOrder name'),
+  //   Master.find({ type: 'instructor_role', isActive: true }).sort('metadata.sortOrder name')
+  // ]);
   const [categories, levels, languages, currencies, instructorRoles] = await Promise.all([
-    Master.find({ type: 'course_category', isActive: true }).sort('metadata.sortOrder name'),
+    Category.find({ isActive: true, isDeleted: false }).sort('name'),
     Master.find({ type: 'course_level', isActive: true }).sort('metadata.sortOrder name'),
     Master.find({ type: 'language', isActive: true }).sort('metadata.sortOrder name'),
     Master.find({ type: 'currency', isActive: true }).sort('metadata.sortOrder name'),
     Master.find({ type: 'instructor_role', isActive: true }).sort('metadata.sortOrder name')
   ]);
-  
   res.status(200).json({
     status: 'success',
     data: {
