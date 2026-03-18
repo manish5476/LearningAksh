@@ -4119,3 +4119,9 @@
 {"ip":"::1","level":"http","message":"GET /api/v1/courses?limit=8","method":"GET","path":"/api/v1/courses","requestId":"b7cec153-267a-4a08-99aa-f4a5986dd473","timestamp":"2026-03-16T17:03:45.556Z","userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"}
 {"duration":527,"level":"http","message":"GET /api/v1/courses/instructor/my-invitations 304 - 527ms","requestId":"1d5c8a75-28f1-4741-ad91-a449a560b7db","statusCode":304,"timestamp":"2026-03-16T17:03:45.850Z"}
 {"duration":382,"level":"http","message":"GET /api/v1/courses?limit=8 304 - 382ms","requestId":"b7cec153-267a-4a08-99aa-f4a5986dd473","statusCode":304,"timestamp":"2026-03-16T17:03:45.939Z"}
+{"ip":"::ffff:127.0.0.1","level":"http","message":"GET /","method":"GET","path":"/","requestId":"d23b9630-523f-421d-ab60-110a791b596a","timestamp":"2026-03-17T10:17:35.413Z","userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"http","message":"\u001b[0mGET / \u001b[33m404\u001b[0m 29.119 ms - 1626\u001b[0m","timestamp":"2026-03-17T10:17:35.446Z"}
+{"duration":25,"level":"http","message":"GET / 404 - 25ms","requestId":"d23b9630-523f-421d-ab60-110a791b596a","statusCode":404,"timestamp":"2026-03-17T10:17:35.447Z"}
+{"ip":"::ffff:127.0.0.1","level":"http","message":"GET /","method":"GET","path":"/","requestId":"6fb0178a-a761-427c-99a0-9d702d065149","timestamp":"2026-03-17T10:39:54.970Z","userAgent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"}
+{"level":"http","message":"\u001b[0mGET / \u001b[33m404\u001b[0m 105.119 ms - 1626\u001b[0m","timestamp":"2026-03-17T10:39:55.088Z"}
+{"duration":74,"level":"http","message":"GET / 404 - 74ms","requestId":"6fb0178a-a761-427c-99a0-9d702d065149","statusCode":404,"timestamp":"2026-03-17T10:39:55.089Z"}
