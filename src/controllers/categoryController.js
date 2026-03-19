@@ -9,19 +9,46 @@ exports.createCategory = catchAsync(async (req, res, next) => {
   if (req.body.name && !req.body.slug) {
     req.body.slug = slugify(req.body.name, { lower: true, strict: true });
   }
-  
   const category = await Category.create(req.body);
-  
   res.status(201).json({
     status: 'success',
     data: { category }
   });
 });
 
+exports.bulkCreateCategories = catchAsync(async (req, res, next) => {
+  if (!req.body.categories || !Array.isArray(req.body.categories)) {
+    return next(new AppError('Please send categories as an array in "categories" field', 400));
+  }
+  const results = [];
+  const errors = [];
+  for (const cat of req.body.categories) {
+    try {
+      const data = { ...cat };
+      if (data.name && !data.slug) {
+        data.slug = slugify(data.name, { lower: true, strict: true });
+      }
+      const created = await Category.create(data);
+      results.push(created);
+    } catch (err) {
+      errors.push({
+        name: cat.name || 'unnamed',
+        error: err.message || 'Failed to create category'
+      });
+    }
+  }
+
+  res.status(201).json({
+    status: 'partial-success', // or 'success' if you prefer
+    created: results.length,
+    failed: errors.length,
+    data: { categories: results },
+    errors: errors.length > 0 ? errors : undefined
+  });
+});
+
 exports.getCategoryTree = catchAsync(async (req, res, next) => {
-  // Fetch only active categories
   const categories = await Category.find({ isDeleted: false, isActive: true }).lean();
-  
   const buildTree = (parentId = null) => {
     return categories
       .filter(cat => (cat.parentCategory ? cat.parentCategory.toString() : null) === (parentId ? parentId.toString() : null))
@@ -32,7 +59,6 @@ exports.getCategoryTree = catchAsync(async (req, res, next) => {
   };
   
   const categoryTree = buildTree();
-  
   res.status(200).json({
     status: 'success',
     results: categoryTree.length,
@@ -42,18 +68,15 @@ exports.getCategoryTree = catchAsync(async (req, res, next) => {
 
 exports.getCategoryWithCourses = catchAsync(async (req, res, next) => {
   const category = await Category.findOne({ _id: req.params.id, isDeleted: false });
-  
   if (!category) {
     return next(new AppError('No category found with that ID', 404));
   }
-  
   const courses = await Course.find({ 
     category: category._id,
     isPublished: true,
     isApproved: true,
     isDeleted: false
   }).populate('instructor', 'firstName lastName profilePicture');
-  
   res.status(200).json({
     status: 'success',
     results: courses.length,
@@ -64,17 +87,14 @@ exports.getCategoryWithCourses = catchAsync(async (req, res, next) => {
   });
 });
 
-// Custom Update to handle Slugs safely
 exports.updateCategory = catchAsync(async (req, res, next) => {
   if (req.body.name && !req.body.slug) {
     req.body.slug = slugify(req.body.name, { lower: true, strict: true });
   }
-
   const category = await Category.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
     runValidators: true
   });
-
   if (!category) {
     return next(new AppError('No category found with that ID', 404));
   }
@@ -84,7 +104,6 @@ exports.updateCategory = catchAsync(async (req, res, next) => {
   });
 });
 
-// Custom Delete to handle Soft Deletes
 exports.deleteCategory = catchAsync(async (req, res, next) => {
   // Soft delete the category instead of permanently deleting it
   const category = await Category.findByIdAndUpdate(req.params.id, { 
