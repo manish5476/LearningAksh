@@ -33,7 +33,7 @@ const analyticsRoutes = require('./analyticsRoutes');
 const reportRoutes = require('./reportRoutes');
 const importExportRoutes = require('./importExportRoutes');
 const masterRoutes = require('./masterRoutes');
-
+const postRouter = require('./postRoutes');
 // Health check endpoint
 router.get('/health', (req, res) => {
   res.status(200).json({
@@ -76,15 +76,18 @@ router.get('/', (req, res) => {
         learningPaths: '/api/v1/learning-paths',
         liveSessions: '/api/v1/live-sessions',
         notes: '/api/v1/notes',
+        notes: '/api/v1/notes',
         analytics: '/api/v1/analytics',
         reports: '/api/v1/reports',
-        importExport: '/api/v1/import-export'
+        importExport: '/api/v1/import-export',
+        posts: '/api/v1/posts'
       }
     }
   });
 });
 
 // Mount routes
+router.use('/posts', postRouter);
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 router.use('/courses', courseRoutes);
