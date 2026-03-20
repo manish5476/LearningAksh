@@ -30,10 +30,10 @@ const server = app.listen(port, async () => {
   // Initialize master data after server starts
   // This doesn't block the server from accepting requests
   try {
+    await initializeMasters();
     // Run in development or when explicitly enabled
     if (process.env.NODE_ENV === 'development' || process.env.RUN_MASTER_INIT === 'true') {
       console.log('📦 Checking master data initialization...');
-      await initializeMasters();
       console.log('✅ Master data initialization complete');
     } else {
       console.log('⏭️  Skipping master data initialization (production mode)');
