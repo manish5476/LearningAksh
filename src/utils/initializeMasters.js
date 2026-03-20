@@ -16,6 +16,25 @@ const generateSlug = (name) => {
 
 // A single, flat array of all master data records
 const systemMasters = [
+  // ==========================================
+  // POST & CONTENT MANAGEMENT MASTERS
+  // ==========================================
+  // --- POST TYPES ---
+  { type: 'post_type', code: 'BLOG', name: 'Blog Post', description: 'Standard educational or informational article', metadata: { sortOrder: 1 } },
+  { type: 'post_type', code: 'CURRENT_AFFAIR', name: 'Current Affair', description: 'Daily news and current affairs analysis', metadata: { sortOrder: 2 } },
+  { type: 'post_type', code: 'ANNOUNCEMENT', name: 'Announcement', description: 'Official platform news or updates', metadata: { sortOrder: 3 } },
+  { type: 'post_type', code: 'SUCCESS_STORY', name: 'Success Story', description: 'Student interviews and success journeys', metadata: { sortOrder: 4 } },
+  { type: 'post_type', code: 'JOB_ALERT', name: 'Job Alert', description: 'Govt or private job notifications', metadata: { sortOrder: 5 } },
+
+  // --- POST STATUSES ---
+  { type: 'post_status', code: 'DRAFT', name: 'Draft', description: 'Not visible to public', metadata: { sortOrder: 1 } },
+  { type: 'post_status', code: 'PUBLISHED', name: 'Published', description: 'Live and visible to everyone', metadata: { sortOrder: 2 } },
+  { type: 'post_status', code: 'SCHEDULED', name: 'Scheduled', description: 'Will publish automatically at a future date', metadata: { sortOrder: 3 } },
+  { type: 'post_status', code: 'ARCHIVED', name: 'Archived', description: 'Hidden from public but kept for records', metadata: { sortOrder: 4 } },
+
+  // ==========================================
+  // COURSE & LEARNING MASTERS
+  // ==========================================
   // --- COURSE LEVELS ---
   { type: 'course_level', code: 'BEGINNER', name: 'Beginner', description: 'No prior knowledge needed', metadata: { sortOrder: 1 } },
   { type: 'course_level', code: 'INTERMEDIATE', name: 'Intermediate', description: 'Some basic knowledge required', metadata: { sortOrder: 2 } },
@@ -59,6 +78,9 @@ const systemMasters = [
   { type: 'badge_criteria', code: '7_DAY_STREAK', name: '7 Day Streak', description: 'Awarded for logging in 7 days in a row', metadata: { sortOrder: 4 } },
   { type: 'badge_criteria', code: '100_HOURS_WATCHED', name: '100 Hours Watched', description: 'Awarded after consuming 100 hours of video content', metadata: { sortOrder: 5 } },
   
+  // ==========================================
+  // SYSTEM & USER MASTERS
+  // ==========================================
   // --- USER GENDERS ---
   { type: 'user_gender', code: 'MALE', name: 'Male', metadata: { sortOrder: 1 } },
   { type: 'user_gender', code: 'FEMALE', name: 'Female', metadata: { sortOrder: 2 } },
@@ -101,19 +123,9 @@ const systemMasters = [
   { type: 'currency', code: 'JPY', name: 'Japanese Yen', metadata: { sortOrder: 5 } },
   { type: 'currency', code: 'CNY', name: 'Chinese Yuan', metadata: { sortOrder: 6 } },
 
-  // --- COURSE CATEGORIES ---
-  { type: 'course_category', code: 'DEVELOPMENT', name: 'Development', description: 'Software development courses', metadata: { sortOrder: 1 } },
-  { type: 'course_category', code: 'BUSINESS', name: 'Business', description: 'Business and entrepreneurship', metadata: { sortOrder: 2 } },
-  { type: 'course_category', code: 'FINANCE', name: 'Finance & Accounting', description: 'Finance and accounting courses', metadata: { sortOrder: 3 } },
-  { type: 'course_category', code: 'IT', name: 'IT & Software', description: 'Information technology courses', metadata: { sortOrder: 4 } },
-  { type: 'course_category', code: 'DESIGN', name: 'Design', description: 'Design and creative courses', metadata: { sortOrder: 5 } },
-  { type: 'course_category', code: 'MARKETING', name: 'Marketing', description: 'Marketing courses', metadata: { sortOrder: 6 } },
-  { type: 'course_category', code: 'HEALTH', name: 'Health & Fitness', description: 'Health and fitness courses', metadata: { sortOrder: 7 } },
-  { type: 'course_category', code: 'MUSIC', name: 'Music', description: 'Music courses', metadata: { sortOrder: 8 } },
-  { type: 'course_category', code: 'ACADEMICS', name: 'Academics', description: 'Academic courses', metadata: { sortOrder: 9 } },
-  { type: 'course_category', code: 'LANGUAGE', name: 'Language Learning', description: 'Language learning courses', metadata: { sortOrder: 10 } },
-  { type: 'course_category', code: 'GOVT_EXAMS', name: 'Government Exams', description: 'Government exam preparation courses', metadata: { sortOrder: 11 } },
-
+  // ==========================================
+  // MEDIA & CONTENT MASTERS
+  // ==========================================
   // --- LESSON TYPES ---
   { type: 'lesson_type', code: 'VIDEO', name: 'Video Lesson', metadata: { sortOrder: 1 } },
   { type: 'lesson_type', code: 'ARTICLE', name: 'Article', metadata: { sortOrder: 2 } },
@@ -134,6 +146,9 @@ const systemMasters = [
   { type: 'video_provider', code: 'VIMEO', name: 'Vimeo', metadata: { sortOrder: 2 } },
   { type: 'video_provider', code: 'LOCAL', name: 'Local Storage', metadata: { sortOrder: 3 } },
 
+  // ==========================================
+  // BILLING & ADMIN MASTERS
+  // ==========================================
   // --- PAYMENT METHODS ---
   { type: 'payment_method', code: 'CREDIT_CARD', name: 'Credit Card', metadata: { sortOrder: 1 } },
   { type: 'payment_method', code: 'DEBIT_CARD', name: 'Debit Card', metadata: { sortOrder: 2 } },
@@ -221,17 +236,17 @@ const initializeMasters = async () => {
     const currencyCount = await Master.countDocuments({ type: 'currency' });
     const languageCount = await Master.countDocuments({ type: 'language' });
     const levelCount = await Master.countDocuments({ type: 'course_level' });
-    const categoryCount = await Master.countDocuments({ type: 'course_category' });
+    const postTypeCount = await Master.countDocuments({ type: 'post_type' });
     
     console.log(`📊 Master stats:`);
     console.log(`   - Currencies: ${currencyCount}`);
     console.log(`   - Languages: ${languageCount}`);
     console.log(`   - Levels: ${levelCount}`);
-    console.log(`   - Categories: ${categoryCount}`);
+    console.log(`   - Post Types: ${postTypeCount}`);
     
     // Show sample of what was created/updated
-    const samples = await Master.find({ type: 'currency' }).limit(4);
-    console.log('💰 Sample currencies:', samples.map(c => `${c.code}: ${c.name}`).join(', '));
+    const samples = await Master.find({ type: 'post_type' }).limit(4);
+    console.log('📝 Sample Post Types:', samples.map(c => `${c.code}: ${c.name}`).join(', '));
     
   } catch (error) {
     console.error('❌ Error initializing masters:', error);
