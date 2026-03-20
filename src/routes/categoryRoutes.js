@@ -40,7 +40,7 @@ router.use(authController.restrictTo('admin'));
 
 // ----- Create -----
 router.post('/', categoryController.createCategory);
-
+router.post('/bulkCreate', categoryController.bulkCreateCategories); // bulk
 // ----- Nested Admin Dynamic Routes -----
 router.patch('/:id/restore', categoryController.restoreCategory);
 

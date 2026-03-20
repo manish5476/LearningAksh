@@ -159,26 +159,63 @@ exports.bulkCreate = (Model) =>
 /* =======================================================
 BULK UPDATE
 ======================================================= */
+// exports.bulkUpdate = (Model) =>
+//   catchAsync(async (req, res, next) => {
+//     const { ids, updates } = req.body;
+//     if (!Array.isArray(ids) || !updates) return next(new AppError("ids and updates required", 400));
+
+//     // 🛡️ SAFEGUARD ADDED: Filter out any bad IDs before mapping
+//     const validIds = ids.filter(id => mongoose.Types.ObjectId.isValid(id));
+//     if (validIds.length === 0) return next(new AppError("No valid IDs provided in array", 400));
+
+//     const result = await Model.updateMany(
+//       { _id: { $in: validIds.map(id => new mongoose.Types.ObjectId(id)) } },
+//       updates,
+//       { runValidators: true }
+//     );
+//     res.status(200).json({
+//       status: "success",
+//       data: { matched: result.matchedCount, modified: result.modifiedCount }
+//     });
+//   });
 exports.bulkUpdate = (Model) =>
   catchAsync(async (req, res, next) => {
-    const { ids, updates } = req.body;
-    if (!Array.isArray(ids) || !updates) return next(new AppError("ids and updates required", 400));
+    // Expecting the body to contain an array of full course objects
+    const { data } = req.body;
+    if (!Array.isArray(data) || data.length === 0) {
+      return next(new AppError("Please provide an array of data to update", 400));
+    }
 
-    // 🛡️ SAFEGUARD ADDED: Filter out any bad IDs before mapping
-    const validIds = ids.filter(id => mongoose.Types.ObjectId.isValid(id));
-    if (validIds.length === 0) return next(new AppError("No valid IDs provided in array", 400));
+    // Map through the array and create a bulk write operation for each item
+    const bulkOps = data
+      .filter(item => item._id && mongoose.Types.ObjectId.isValid(item._id))
+      .map((item) => {
+        // Separate the _id from the rest of the data
+        const { _id, ...updateData } = item;
 
-    const result = await Model.updateMany(
-      { _id: { $in: validIds.map(id => new mongoose.Types.ObjectId(id)) } },
-      updates,
-      { runValidators: true }
-    );
+        return {
+          updateOne: {
+            filter: { _id: _id },
+            update: { $set: updateData }, 
+            upsert: false // Set to true if you want it to create new courses if the ID doesn't exist
+          }
+        };
+      });
+
+    if (bulkOps.length === 0) {
+      return next(new AppError("No valid IDs found in the provided data", 400));
+    }
+
+    // Execute all updates simultaneously
+    const result = await Model.bulkWrite(bulkOps, { ordered: false });
+
     res.status(200).json({
       status: "success",
-      data: { matched: result.matchedCount, modified: result.modifiedCount }
+      message: "Whole data updated successfully!",
+      matchedCount: result.matchedCount,
+      modifiedCount: result.modifiedCount
     });
   });
-
 /* =======================================================
 BULK DELETE
 ======================================================= */

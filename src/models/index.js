@@ -21,7 +21,7 @@ const studentExperience = require('./core/studentExperienceDomain.model');
 // Contains: Coupon, Announcement, Cohort
 const marketing = require('./core/marketingDomain.model');
 const Master = require('../config/Master');
-
+const Post = require('./core/postModel')
 module.exports = {
   ...UserModels,
   // ...Master,
@@ -33,30 +33,5 @@ module.exports = {
   ...TrackingModels,
   ...MiscModels,
   ...studentExperience,
-  ...marketing
+  ...marketing, Post
 };
-
-// // Central export file unifying all domain models
-// const UserModels = require('./core1/userDomain.model');
-// const CourseModels = require('./core1/courseDomain.model');
-// const AssessmentModels = require('./core1/assesmentDomain.model');
-// const ExerciseModels = require('./core1/exerciseDomain.model');
-// const InteractionModels = require('./core1/interactionDomain.model');
-// const CommerceModels = require('./core1/commerceDomain.model');
-// const TrackingModels = require('./core1/trackingCertificatsDomain.model');
-// const MiscModels = require('./core1/miscDomain.model');
-// const studentExperience = require('./core1/studentExperienceDomain.model');
-// const marketing = require('./core1/marketingDomain.model');
-
-// module.exports = {
-//   ...UserModels,
-//   ...CourseModels,
-//   ...AssessmentModels,
-//   ...ExerciseModels,
-//   ...InteractionModels,
-//   ...CommerceModels,
-//   ...TrackingModels,
-//   ...MiscModels,
-//   ...studentExperience,
-//   ...marketing
-// };
