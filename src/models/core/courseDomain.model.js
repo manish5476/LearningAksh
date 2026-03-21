@@ -55,7 +55,34 @@ const categorySchema = new mongoose.Schema({
   parentCategory: { type: mongoose.Schema.Types.ObjectId, ref: 'Category' },
   isActive: { type: Boolean, default: true },
   isDeleted: { type: Boolean, default: false }
-}, { timestamps: true });
+}, { 
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
+
+// Virtual for subcategories
+categorySchema.virtual('subCategories', {
+  ref: 'Category',
+  localField: '_id',
+  foreignField: 'parentCategory'
+});
+
+// Virtual for courses count (lazy load)
+categorySchema.virtual('courseCount', {
+  ref: 'Course',
+  localField: '_id',
+  foreignField: 'category',
+  count: true
+});
+
+categorySchema.pre('save', function(next) {
+  if (this.isModified('name') && !this.slug) {
+    // Generate simple slug (using the helper defined at the top of the file)
+    this.slug = slugify(this.name);
+  }
+  next();
+});
 
 // ==================== COURSE INSTRUCTOR SUB-SCHEMA ====================
 const courseInstructorSchema = new mongoose.Schema({

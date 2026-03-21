@@ -5,10 +5,7 @@ const factory = require('../utils/handlerFactory');
 const slugify = require('slugify');
 
 exports.createCategory = catchAsync(async (req, res, next) => {
-  // Generate slug from name, strict strips out weird special characters
-  if (req.body.name && !req.body.slug) {
-    req.body.slug = slugify(req.body.name, { lower: true, strict: true });
-  }
+  // Slug is now handled by model pre-save hook
   const category = await Category.create(req.body);
   res.status(201).json({
     status: 'success',
@@ -24,11 +21,7 @@ exports.bulkCreateCategories = catchAsync(async (req, res, next) => {
   const errors = [];
   for (const cat of req.body.categories) {
     try {
-      const data = { ...cat };
-      if (data.name && !data.slug) {
-        data.slug = slugify(data.name, { lower: true, strict: true });
-      }
-      const created = await Category.create(data);
+      const created = await Category.create(cat);
       results.push(created);
     } catch (err) {
       errors.push({
@@ -57,7 +50,7 @@ exports.getCategoryTree = catchAsync(async (req, res, next) => {
         children: buildTree(cat._id)
       }));
   };
-  
+
   const categoryTree = buildTree();
   res.status(200).json({
     status: 'success',
@@ -67,37 +60,68 @@ exports.getCategoryTree = catchAsync(async (req, res, next) => {
 });
 
 exports.getCategoryWithCourses = catchAsync(async (req, res, next) => {
-  const category = await Category.findOne({ _id: req.params.id, isDeleted: false });
+  const { status } = req.query;
+  const category = await Category.findOne({ _id: req.params.id, isDeleted: false }).lean();
+
   if (!category) {
     return next(new AppError('No category found with that ID', 404));
   }
-  const courses = await Course.find({ 
-    category: category._id,
-    isPublished: true,
-    isApproved: true,
+
+  // 1. Find all subcategories recursively to include their courses
+  const allCategoryIds = [category._id];
+  const getAllSubCategoryIds = async (parentId) => {
+    const subs = await Category.find({ parentCategory: parentId, isDeleted: false }).select('_id').lean();
+    for (const sub of subs) {
+      allCategoryIds.push(sub._id);
+      await getAllSubCategoryIds(sub._id);
+    }
+  };
+  await getAllSubCategoryIds(category._id);
+
+  // 2. Build filter (Include drafts only if status=all is passed)
+  let courseFilter = {
+    category: { $in: allCategoryIds },
     isDeleted: false
-  }).populate('instructor', 'firstName lastName profilePicture');
+  };
+
+  if (status !== 'all') {
+    courseFilter.isPublished = true;
+    courseFilter.isApproved = true;
+  }
+
+  // 3. Find courses with correct population (primaryInstructor)
+  const courses = await Course.find(courseFilter)
+    .populate('primaryInstructor', 'firstName lastName profilePicture email')
+    .sort('-createdAt')
+    .lean();
+
   res.status(200).json({
     status: 'success',
     results: courses.length,
     data: {
       category,
+      courseCount: courses.length,
       courses
     }
   });
 });
 
 exports.updateCategory = catchAsync(async (req, res, next) => {
-  if (req.body.name && !req.body.slug) {
-    req.body.slug = slugify(req.body.name, { lower: true, strict: true });
+  // 1. Prevent circular parenting (Self as parent)
+  if (req.body.parentCategory && req.body.parentCategory.toString() === req.params.id) {
+    return next(new AppError('A category cannot be its own parent.', 400));
   }
+
+  // Note: Slug is handled by pre-save hook IF name changes
   const category = await Category.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
     runValidators: true
   });
+
   if (!category) {
     return next(new AppError('No category found with that ID', 404));
   }
+
   res.status(200).json({
     status: 'success',
     data: { category }
@@ -105,15 +129,31 @@ exports.updateCategory = catchAsync(async (req, res, next) => {
 });
 
 exports.deleteCategory = catchAsync(async (req, res, next) => {
-  // Soft delete the category instead of permanently deleting it
-  const category = await Category.findByIdAndUpdate(req.params.id, { 
+  // 1. Soft delete the category
+  const category = await Category.findByIdAndUpdate(req.params.id, {
     isDeleted: true,
-    isActive: false 
+    isActive: false
   });
 
   if (!category) {
     return next(new AppError('No category found with that ID', 404));
   }
+
+  // 2. RECUSRIVE CASCADE: Soft-delete all subcategories
+  const softDeleteChildren = async (parentId) => {
+    const children = await Category.find({ parentCategory: parentId, isDeleted: false });
+    if (children.length > 0) {
+      await Category.updateMany(
+        { parentCategory: parentId },
+        { isDeleted: true, isActive: false }
+      );
+      // Recursively delete their children too
+      for (const child of children) {
+        await softDeleteChildren(child._id);
+      }
+    }
+  };
+  await softDeleteChildren(req.params.id);
 
   res.status(204).json({
     status: 'success',
@@ -128,19 +168,19 @@ exports.deleteCategory = catchAsync(async (req, res, next) => {
 exports.getPopularCategories = catchAsync(async (req, res, next) => {
   // Find categories with the most published courses
   const popularCategories = await Course.aggregate([
-    { 
-      $match: { isPublished: true, isApproved: true, isDeleted: false } 
+    {
+      $match: { isPublished: true, isApproved: true, isDeleted: false }
     },
-    { 
-      $group: { 
-        _id: '$category', 
-        courseCount: { $sum: 1 } 
-      } 
+    {
+      $group: {
+        _id: '$category',
+        courseCount: { $sum: 1 }
+      }
     },
-    { 
-      $sort: { courseCount: -1 } 
+    {
+      $sort: { courseCount: -1 }
     },
-    { 
+    {
       $limit: req.query.limit ? parseInt(req.query.limit) : 6
     },
     {
@@ -151,8 +191,8 @@ exports.getPopularCategories = catchAsync(async (req, res, next) => {
         as: 'categoryDetails'
       }
     },
-    { 
-      $unwind: '$categoryDetails' 
+    {
+      $unwind: '$categoryDetails'
     },
     {
       $project: {
@@ -195,10 +235,10 @@ exports.restoreCategory = catchAsync(async (req, res, next) => {
 exports.getCategoryBreadcrumbs = catchAsync(async (req, res, next) => {
   const categoryId = req.params.id;
   const breadcrumbs = [];
-  
+
   // Start with the current category
   let currentCategory = await Category.findById(categoryId).lean();
-  
+
   if (!currentCategory) {
     return next(new AppError('Category not found', 404));
   }
@@ -223,69 +263,9 @@ exports.getCategoryBreadcrumbs = catchAsync(async (req, res, next) => {
 
 // Standard Factory routes for simple gets
 exports.getAllCategories = factory.getAll(Category);
-exports.getCategory = factory.getOne(Category);
-
-
-
-// const { Category } = require('../models');
-// const AppError = require('../utils/appError');
-// const catchAsync = require('../utils/catchAsync');
-// const factory = require('../utils/handlerFactory');
-// const slugify = require('slugify');
-
-// exports.createCategory = catchAsync(async (req, res, next) => {
-//   // Generate slug from name
-//   if (req.body.name && !req.body.slug) {
-//     req.body.slug = slugify(req.body.name, { lower: true });
-//   }
-//   const category = await Category.create(req.body);
-//   res.status(201).json({
-//     status: 'success',
-//     data: { category }
-//   });
-// });
-
-// exports.getCategoryTree = catchAsync(async (req, res, next) => {
-//   const categories = await Category.find({ isDeleted: { $ne: true } }).lean();
-//   const buildTree = (parentId = null) => {
-//     return categories
-//       .filter(cat => (cat.parentCategory ? cat.parentCategory.toString() : null) === (parentId ? parentId.toString() : null))
-//       .map(cat => ({
-//         ...cat,
-//         children: buildTree(cat._id)
-//       }));
-//   };
-//   const categoryTree = buildTree();
-//   res.status(200).json({
-//     status: 'success',
-//     results: categoryTree.length,
-//     data: { categories: categoryTree }
-//   });
-// });
-
-// exports.getCategoryWithCourses = catchAsync(async (req, res, next) => {
-//   const { Course } = require('../models');
-//   const category = await Category.findById(req.params.id);
-//   if (!category) {
-//     return next(new AppError('No category found with that ID', 404));
-//   }
-//   const courses = await Course.find({ 
-//     category: category._id,
-//     isPublished: true,
-//     isApproved: true,
-//     isDeleted: { $ne: true }
-//   }).populate('instructor', 'firstName lastName');
-//   res.status(200).json({
-//     status: 'success',
-//     data: {
-//       category,
-//       courses
-//     }
-//   });
-// });
-
-// // CRUD operations
-// exports.getAllCategories = factory.getAll(Category);
-// exports.getCategory = factory.getOne(Category);
-// exports.updateCategory = factory.updateOne(Category);
-// exports.deleteCategory = factory.deleteOne(Category);
+exports.getCategory = factory.getOne(Category, {
+  populate: [
+    { path: 'parentCategory', select: 'name slug' },
+    { path: 'subCategories', select: 'name slug' }
+  ]
+});
