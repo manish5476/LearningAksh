@@ -25,16 +25,7 @@ exports.setAuthor = (req, res, next) => {
  * Handles Blogs, Current Affairs, Announcements, etc.
  */
 exports.getPublishedPosts = catchAsync(async (req, res, next) => {
-  const {
-    type,
-    category,
-    language,
-    search,
-    isFeatured,
-    sort,
-    limit = 12,
-    page = 1
-  } = req.query;
+  const { type, category, language, search, isFeatured, sort, limit = 12, page = 1 } = req.query;
 
   // Base filter: Only published & not deleted
   let filter = {
@@ -163,7 +154,7 @@ exports.likePost = catchAsync(async (req, res, next) => {
   }
 
   let isLiked = false;
-  
+
   // Convert ObjectIds to strings for accurate comparison
   const hasLiked = post.likedBy.some(id => id.toString() === req.user.id.toString());
 
@@ -183,7 +174,7 @@ exports.likePost = catchAsync(async (req, res, next) => {
 
   res.status(200).json({
     status: 'success',
-    data: { 
+    data: {
       likes: post.likes,
       isLiked
     }
