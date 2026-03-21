@@ -52,11 +52,7 @@ router.post('/', postController.setAuthor, postController.createPost);
 router.patch('/:id/publish', postController.publishPost);
 router.patch('/:id/unpublish', postController.unpublishPost);
 router.patch('/:id/feature', postController.toggleFeature);
-
 router.get('/admin/:id', postController.getPostAdmin);
-
-router.route('/:id')
-  .patch(postController.updatePost)
-  .delete(postController.deletePost);
+router.route('/:id').patch(postController.updatePost).delete(postController.deletePost);
 
 module.exports = router;
