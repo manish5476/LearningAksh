@@ -25,28 +25,28 @@ exports.setAuthor = (req, res, next) => {
  * Handles Blogs, Current Affairs, Announcements, etc.
  */
 exports.getPublishedPosts = catchAsync(async (req, res, next) => {
-  const { 
-    type, 
-    category, 
-    language, 
-    search, 
+  const {
+    type,
+    category,
+    language,
+    search,
     isFeatured,
     sort,
-    limit = 12, 
-    page = 1 
+    limit = 12,
+    page = 1
   } = req.query;
 
   // Base filter: Only published & not deleted
-  let filter = { 
-    status: 'published', 
-    isDeleted: { $ne: true } 
+  let filter = {
+    status: 'published',
+    isDeleted: { $ne: true }
   };
 
   // Dynamic Filters
   if (type) filter.type = type.toLowerCase();
   if (language) filter.language = language.toLowerCase();
   if (isFeatured === 'true') filter.isFeatured = true;
-  
+
   // Smart Category Handling (Accepts Object ID or String Slug)
   if (category) {
     if (mongoose.isValidObjectId(category)) {
@@ -64,7 +64,7 @@ exports.getPublishedPosts = catchAsync(async (req, res, next) => {
 
   // Smart Sorting
   let sortOption = '-publishedAt'; // Default for blogs
-  
+
   if (sort) {
     sortOption = sort; // User requested specific sort
   } else if (filter.type === 'current_affairs' || filter.type === 'current_affair') {
@@ -77,7 +77,7 @@ exports.getPublishedPosts = catchAsync(async (req, res, next) => {
   const [posts, total] = await Promise.all([
     Post.find(filter)
       // Exclude heavy 'content' field for list views to save bandwidth
-      .select('-content') 
+      .select('-content')
       .populate('category', 'name slug')
       .populate('author', 'firstName lastName profilePicture')
       .sort(sortOption)
@@ -107,9 +107,9 @@ exports.getPublishedPosts = catchAsync(async (req, res, next) => {
  * Get Single Post (By Slug or ID) + Auto-Increment Views + Get Related
  */
 exports.getPostSmart = catchAsync(async (req, res, next) => {
-  const identifier = req.params.slug;
+  const identifier = req.params.identifier;
   const isId = mongoose.isValidObjectId(identifier);
-  
+
   const query = isId ? { _id: identifier } : { slug: identifier.toLowerCase() };
   query.status = 'published';
   query.isDeleted = { $ne: true };
@@ -120,9 +120,9 @@ exports.getPostSmart = catchAsync(async (req, res, next) => {
     { $inc: { views: 1 } }, // 🔥 Thread-safe view counter
     { new: true }
   )
-  .populate('category', 'name slug')
-  .populate('author', 'firstName lastName bio profilePicture')
-  .lean();
+    .populate('category', 'name slug')
+    .populate('author', 'firstName lastName bio profilePicture')
+    .lean();
 
   if (!post) {
     return next(new AppError('Post not found or has been removed.', 404));
@@ -137,10 +137,10 @@ exports.getPostSmart = catchAsync(async (req, res, next) => {
       status: 'published',
       isDeleted: { $ne: true }
     })
-    .select('title slug thumbnail excerpt readTime publishedAt type')
-    .sort('-publishedAt')
-    .limit(3)
-    .lean();
+      .select('title slug thumbnail excerpt readTime publishedAt type')
+      .sort('-publishedAt')
+      .limit(3)
+      .lean();
   }
 
   res.status(200).json({
@@ -153,22 +153,40 @@ exports.getPostSmart = catchAsync(async (req, res, next) => {
 });
 
 /**
- * Like a Post
+ * Toggle Like on a Post (Spam-Proof)
  */
 exports.likePost = catchAsync(async (req, res, next) => {
-  const post = await Post.findByIdAndUpdate(
-    req.params.id,
-    { $inc: { likes: 1 } },
-    { new: true }
-  ).select('likes');
+  const post = await Post.findById(req.params.id);
 
   if (!post) {
     return next(new AppError('Post not found', 404));
   }
 
+  let isLiked = false;
+  
+  // Convert ObjectIds to strings for accurate comparison
+  const hasLiked = post.likedBy.some(id => id.toString() === req.user.id.toString());
+
+  if (hasLiked) {
+    // User already liked it, so un-like
+    post.likedBy.pull(req.user.id);
+    post.likes = Math.max(0, post.likes - 1);
+  } else {
+    // User hasn't liked it, so like
+    post.likedBy.push(req.user.id);
+    post.likes += 1;
+    isLiked = true;
+  }
+
+  // Save the document without running pre validators for optimization
+  await post.save({ validateBeforeSave: false });
+
   res.status(200).json({
     status: 'success',
-    data: { likes: post.likes }
+    data: { 
+      likes: post.likes,
+      isLiked
+    }
   });
 });
 
@@ -182,15 +200,15 @@ exports.updatePost = factory.updateOne(Post);
 
 // Soft Delete
 exports.deletePost = catchAsync(async (req, res, next) => {
-  const post = await Post.findByIdAndUpdate(req.params.id, { 
+  const post = await Post.findByIdAndUpdate(req.params.id, {
     isDeleted: true,
     status: 'archived' // Automatically archive when deleted
   });
-  
+
   if (!post) {
     return next(new AppError('No post found with that ID', 404));
   }
-  
+
   res.status(204).json({
     status: 'success',
     data: null
@@ -204,4 +222,92 @@ exports.getAllPostsAdmin = factory.getAll(Post, {
     { path: 'category', select: 'name slug' },
     { path: 'author', select: 'firstName lastName email' }
   ]
+});
+
+// Get single post for admin edit (includes drafts)
+exports.getPostAdmin = factory.getOne(Post, {
+  populate: [
+    { path: 'category', select: 'name slug' },
+    { path: 'author', select: 'firstName lastName email profilePicture' }
+  ]
+});
+
+// ==========================================
+// 4. NEW BLOG FEATURES (Admin & Public)
+// ==========================================
+
+/**
+ * Publish a Post (Admin)
+ */
+exports.publishPost = catchAsync(async (req, res, next) => {
+  const post = await Post.findByIdAndUpdate(
+    req.params.id,
+    { status: 'published', publishedAt: new Date() },
+    { new: true, runValidators: true }
+  );
+
+  if (!post) return next(new AppError('No post found with that ID', 404));
+
+  res.status(200).json({ status: 'success', data: { post } });
+});
+
+/**
+ * Unpublish a Post (Admin)
+ */
+exports.unpublishPost = catchAsync(async (req, res, next) => {
+  const post = await Post.findByIdAndUpdate(
+    req.params.id,
+    { status: 'draft', publishedAt: null },
+    { new: true, runValidators: true }
+  );
+
+  if (!post) return next(new AppError('No post found with that ID', 404));
+
+  res.status(200).json({ status: 'success', data: { post } });
+});
+
+/**
+ * Toggle Feature Status (Admin)
+ */
+exports.toggleFeature = catchAsync(async (req, res, next) => {
+  let post = await Post.findById(req.params.id);
+  if (!post) return next(new AppError('No post found with that ID', 404));
+
+  post.isFeatured = !post.isFeatured;
+  await post.save({ validateBeforeSave: false });
+
+  res.status(200).json({ status: 'success', data: { post } });
+});
+
+/**
+ * Get Published Posts By Specific Author (Public)
+ */
+exports.getPostsByAuthor = catchAsync(async (req, res, next) => {
+  const posts = await Post.find({
+    author: req.params.authorId,
+    status: 'published',
+    isDeleted: { $ne: true }
+  })
+    .select('-content')
+    .populate('category', 'name slug')
+    .sort('-publishedAt')
+    .lean();
+
+  res.status(200).json({
+    status: 'success',
+    results: posts.length,
+    data: posts
+  });
+});
+
+/**
+ * Get All Unique Tags from published posts (Public)
+ */
+exports.getAllTags = catchAsync(async (req, res, next) => {
+  const tags = await Post.distinct('tags', {
+    status: 'published',
+    isDeleted: { $ne: true }
+  });
+
+  res.status(200).json({ status: 'success', results: tags.length, data: tags });
 });

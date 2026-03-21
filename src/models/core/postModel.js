@@ -67,6 +67,7 @@ const postSchema = new mongoose.Schema({
   readTime: { type: Number, default: 5 }, 
   views: { type: Number, default: 0 },
   likes: { type: Number, default: 0 },
+  likedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   
   // SEO Meta Data
   seo: {
