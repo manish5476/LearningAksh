@@ -51,7 +51,8 @@ exports.getDropdown = (Model, defaultLabelField = 'name') =>
     const items = await Model.find(filter)
       .select(`${labelField} ${valueField}`)
       .sort(sort)
-      .limit(parseInt(limit));
+      .limit(parseInt(limit))
+      .lean();
 
     // Format for dropdown
     const dropdownOptions = items.map(item => ({
@@ -101,7 +102,8 @@ exports.getKeyValueMap = (Model) =>
 
     // Get documents
     const items = await Model.find(finalFilter)
-      .select(`${keyField} ${valueField}`);
+      .select(`${keyField} ${valueField}`)
+      .lean();
 
     // Create key-value map
     const keyValueMap = {};
@@ -161,7 +163,8 @@ exports.getEnhancedDropdown = (Model, defaultLabelField = 'name') =>
 
     const items = await Model.find(filter)
       .select(selectFields)
-      .sort(labelField);
+      .sort(labelField)
+      .lean();
 
     // Enhanced dropdown with original data
     const dropdownOptions = items.map(item => {

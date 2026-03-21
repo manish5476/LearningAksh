@@ -243,11 +243,9 @@ const initializeMasters = async () => {
     console.log(`   - Languages: ${languageCount}`);
     console.log(`   - Levels: ${levelCount}`);
     console.log(`   - Post Types: ${postTypeCount}`);
-    
     // Show sample of what was created/updated
     const samples = await Master.find({ type: 'post_type' }).limit(4);
     console.log('📝 Sample Post Types:', samples.map(c => `${c.code}: ${c.name}`).join(', '));
-    
   } catch (error) {
     console.error('❌ Error initializing masters:', error);
   }

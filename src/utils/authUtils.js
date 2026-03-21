@@ -8,8 +8,6 @@ exports.signAccessToken = (user) => {
   const payload = {
     id: userId,
     sub: userId, // Standard Subject claim
-    organizationId: user.organizationId,
-    // Safely handle optional fields (prevents 'undefined' in token)
     ...(user.name && { name: user.name }),
     ...(user.email && { email: user.email }),
     isSuperAdmin: user.isSuperAdmin || false,
@@ -72,7 +70,6 @@ exports.decodeToken = (token) => {
 exports.signToken = (user) => {
   const payload = {
     id: user._id,
-    organizationId: user.organizationId,
     branchId: user.branchId,
     role: user.role?._id || user.role,
   };

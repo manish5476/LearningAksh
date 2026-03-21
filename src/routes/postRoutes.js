@@ -7,36 +7,52 @@ const router = express.Router();
 // ==========================================
 // 1. PUBLIC ROUTES (Readers & Students)
 // ==========================================
-// We use the '/public' prefix so the controller knows to apply smart filtering
-// (e.g., only showing 'published' posts and hiding the HTML content from the list view)
+// Fetch all published posts
+router.get('/', postController.getPublishedPosts);
 
-router.get('/public', postController.getPublishedPosts);
-router.get('/public/:slug', postController.getPostSmart);
+// Get all unique tags
+router.get('/tags/all', postController.getAllTags);
 
+// Get posts by author
+router.get('/author/:authorId', postController.getPostsByAuthor);
 
 // ==========================================
-// 2. AUTHENTICATED STUDENT ROUTES
+// 2. ADMIN & INSTRUCTOR ROUTES (Part 1 - Specific Paths)
+// ==========================================
+// We place /admin/all before /:identifier so it doesn't get treated as a slug
+router.get(
+  '/admin/all',
+  protect,
+  restrictTo('admin', 'instructor'),
+  postController.getAllPostsAdmin
+);
+
+// ==========================================
+// 3. PUBLIC SINGLE POST (By Slug or ID)
+// ==========================================
+router.get('/:identifier', postController.getPostSmart);
+
+// ==========================================
+// 4. AUTHENTICATED STUDENT ROUTES
 // ==========================================
 // Users must be logged in past this point.
 router.use(protect);
 
-// Allow logged-in students to like a post
+// Allow logged-in students to like a post (spam-proof)
 router.patch('/:id/like', postController.likePost);
 
-
 // ==========================================
-// 3. ADMIN & INSTRUCTOR ROUTES
+// 5. ADMIN & INSTRUCTOR CRUD ROUTES
 // ==========================================
 // Restrict all routes below to only admins and instructors.
-// Standard students will get a 403 Forbidden error if they try to hit these.
 router.use(restrictTo('admin', 'instructor'));
 
-router.route('/')
-  .get(postController.getAllPostsAdmin)
-  .post(postController.setAuthor, postController.createPost);
+router.post('/', postController.setAuthor, postController.createPost);
 
-router.route('/:id')
-  .patch(postController.updatePost)
-  .delete(postController.deletePost);
+router.patch('/:id/publish', postController.publishPost);
+router.patch('/:id/unpublish', postController.unpublishPost);
+router.patch('/:id/feature', postController.toggleFeature);
+router.get('/admin/:id', postController.getPostAdmin);
+router.route('/:id').patch(postController.updatePost).delete(postController.deletePost);
 
 module.exports = router;
